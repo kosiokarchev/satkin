@@ -3,8 +3,8 @@ import subprocess
 
 output_path = 'test.csv'
 
-username = 'wuijts'
-password = 'G984587L'
+username = '...'
+password = '...'
 url = 'http://gavo.mpa-garching.mpg.de/MyMillennium/'
 
 limit = 1000000
