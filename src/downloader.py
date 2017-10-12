@@ -3,8 +3,8 @@ import subprocess
 
 output_path = 'test.csv'
 
-username = '...'
-password = '...'
+with open('credentials.txt', encoding='ascii') as f:
+    username, password = f.read().replace('\n', '').split(':')
 url = 'http://gavo.mpa-garching.mpg.de/MyMillennium/'
 
 limit = 1000000
