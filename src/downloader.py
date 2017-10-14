@@ -1,26 +1,43 @@
+#!/usr/bin/env python3
 import subprocess
 
 
-output_path = 'test.csv'
+def download(sql, fname):
+    with open('credentials.txt', encoding='ascii') as f:
+        usr, pwd = f.read().replace('\n', '').split(':')
+    url = 'http://gavo.mpa-garching.mpg.de/MyMillennium/?action=doQuery&SQL='+sql
 
-with open('credentials.txt', encoding='ascii') as f:
-    username, password = f.read().replace('\n', '').split(':')
-url = 'http://gavo.mpa-garching.mpg.de/MyMillennium/'
+    wget = ('wget', '--http-user=' + usr, '--http-passwd=' + pwd, '-O', fname, url)
+    subprocess.run(wget, check=True)
 
-limit = 1000000
-columns = ['galaxyId', 'type',
-           'phKey', 'x', 'y', 'z', 'velX', 'velY', 'velZ',
-           'redshift', 'lookBackTime',
-           'rvir', 'bulgeSize', 'stellarDiskRadius',
-           'mvir', 'coldGas', 'stellarMass', 'bulgeMass', 'diskMass', 'hotGas', 'ejectedMass', 'blackHoleMass', 'icmStellarMass',
-           'sfr', 'sfrBulge',
-           'centralMVir', 'centralRvir', 'distanceToCentralGalX', 'distanceToCentralGalY', 'distanceToCentralGalZ',
-           'treeId', 'descendantId', 'mainLeafId', 'treeRootId', 'firstProgenitorId', 'nextProgenitorId', 'lastProgenitorId', 'haloId', 'subHaloId', 'fofCentralId', 'fofSubhaloId']
-table = 'Henriques2015a..MRscPlanck1'
-sql = 'SELECT TOP {limit} {cols} FROM {table}'
 
-SQL = sql.format(limit=limit, cols=','.join(columns), table=table)
-full_url = url + '?action=doQuery&SQL=' + SQL
+def gen_select(cols, table, where='', top=0):
+    return 'SELECT {top} {cols} FROM {table} {where}'.format(
+        top=('TOP '+str(top)) if top else '',
+        cols=', '.join(cols), table=table,
+        where=('WHERE '+where) if where else '')
 
-wget = ('wget', '--http-user='+username, '--http-passwd='+password,'-O', output_path, full_url)
-subprocess.run(wget, check=True)
+
+TABLES = {'H15-cube': 'Henriques2015a..MRscPlanck1',
+          'H15-cone': lambda n=1: 'Henriques2015a.cones.MRscPlanck1_BC03_{:0>3}'.format(n)}
+COLUMNS = {
+    'H15-cube': [
+        'galaxyId',
+        'phKey', 'x', 'y', 'z', 'velX', 'velY', 'velZ',
+        'redshift', 'lookBackTime',
+        'rvir', 'bulgeSize', 'stellarDiskRadius',
+        'mvir', 'coldGas', 'stellarMass', 'bulgeMass', 'diskMass', 'hotGas', 'ejectedMass', 'blackHoleMass', 'icmStellarMass',
+        'sfr', 'sfrBulge',
+        'type', 'centralMVir', 'centralRvir', 'distanceToCentralGalX', 'distanceToCentralGalY', 'distanceToCentralGalZ',
+        'treeId', 'descendantId', 'mainLeafId', 'treeRootId', 'firstProgenitorId', 'nextProgenitorId', 'lastProgenitorId', 'haloId', 'subHaloId', 'fofCentralId', 'fofSubhaloId'],
+    'H15-cone': [
+        'galaxyId',
+        'ra', 'dec', 'inclination', 'PA',
+        'z_geo', 'z_app', 'vpec',
+        'd_comoving', 'dlum', 'ang_dist'
+    ]
+}
+
+
+if __name__ == '__main__':
+    download(gen_select(COLUMNS['H15-cube'], TABLES['H15-cube'], top=10000), 'test.csv')
