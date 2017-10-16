@@ -31,6 +31,7 @@ class D99_caustics:
         self.cc = None
 
     def calculate_density(self, xs, ys, xtol=0.1, maxiter=None):
+        print('Calculating the density...')
         self.dc = D99_density_calculator(self.data, xs, ys)
         
         options = {'xtol': xtol}
@@ -49,6 +50,7 @@ class D99_caustics:
         self.xs = xs
         self.ys = ys
 
+        print('Densisty calculated.')
         return self.rho
 
     def mock_calculate_density(self, xs, ys, *args, **kwargs):
@@ -60,6 +62,7 @@ class D99_caustics:
         return self.rho
 
     def calculate_caustics(self):
+        print('Determining caustics...')
         self.cc = D99_caustic_calculator(self.data, self.rho, self.xs, self.ys)
 
         m = minimize_scalar(self.cc.S, [0.5, 1])
@@ -70,6 +73,7 @@ class D99_caustics:
             print(self.cc.A)
             self.A = self.cc.A
 
+        print('Caustics calculated.')
         return self.A
 
 
@@ -114,6 +118,8 @@ class D99_density_calculator:
         return s.transpose()
 
     def M(self, h_c):
+        print('Trying h_c='+str(h_c))
+
         self.h_c = h_c
         self.rho = self.get_density()
         S = (self.rho * self.rho).sum() * self.dx * self.dy
@@ -171,9 +177,11 @@ class D99_caustic_calculator:
 
 
     def S(self, k):
-        self.k = k
-        self.get_A()
+        print('Trying k='+str(k))
 
+        self.k = k
+
+        self.get_A()
         avg_esc2 = (self.A[:self.maxi]**2 * self.phis).sum() / self.sum_phis
 
         return (avg_esc2 - self.four_avg_v2)**2
@@ -182,7 +190,7 @@ class D99_caustic_calculator:
 if __name__=="__main__":
     from matplotlib import pyplot as plt
 
-    N = 300
+    N = 1000
     coords = np.ndarray((N, 2))
     coords[:, 0] = np.abs(np.random.normal(0, 0.5, size=N))
     coords[:, 1] = np.random.normal(0, 0.1, size=N)
@@ -194,14 +202,16 @@ if __name__=="__main__":
     ys = np.arange(BOUNDS[2], BOUNDS[3], GRIDSIZE)
 
     d = D99_caustics(coords)
-    d.mock_calculate_density(xs, ys)
+    d.calculate_density(xs, ys)
     d.calculate_caustics()
 
     plt.xlim((BOUNDS[0], BOUNDS[1]-GRIDSIZE))
     plt.ylim((BOUNDS[2], BOUNDS[3]-GRIDSIZE))
     plt.plot(coords[:, 0], coords[:, 1], 'rx')
-    plt.imshow(d.cc.rho, extent=(BOUNDS[0], BOUNDS[1]-GRIDSIZE, BOUNDS[3]-GRIDSIZE, BOUNDS[2]), aspect='auto')
+    plt.imshow(d.cc.rho, cmap='inferno', extent=(BOUNDS[0], BOUNDS[1]-GRIDSIZE, BOUNDS[3]-GRIDSIZE, BOUNDS[2]), aspect='auto')
     plt.colorbar()
 
-    plt.plot(d.cc.rs[:len(d.cc.A)], d.cc.caustics[0], 'w-')
-    plt.plot(d.cc.rs[:len(d.cc.A)], d.cc.caustics[1], 'w-')
+    plt.plot(d.cc.rs, d.cc.caustics[0], 'w:')
+    plt.plot(d.cc.rs, d.cc.caustics[1], 'w:')
+    plt.plot(d.cc.rs, d.cc.A, 'w-')
+    plt.plot(d.cc.rs, -d.cc.A, 'w-')
