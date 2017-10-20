@@ -2,12 +2,16 @@ import numpy as np
 from scipy.optimize import minimize_scalar
 from scipy.interpolate import interp2d
 
+import numba
 
+
+@numba.jit
 def kernel(d):
     t2 = np.sum(d*d)
     return (4/np.pi)*(1-t2)**3 if t2<1 else 0
 
 
+@numba.jit
 def find_all_roots(x, y):
     roots = []
     for i in range(len(y)-1):
@@ -77,6 +81,21 @@ class D99_caustics:
         return self.A
 
 
+@numba.jitclass({
+    'data': numba.typeof(np.array([[1.0]])),
+    'N': numba.int_,
+    'xs': numba.typeof(np.array([1.0])),
+    'ys': numba.typeof(np.array([1.0])),
+    'nx': numba.int_,
+    'ny': numba.int_,
+    'dx': numba.float64,
+    'dy': numba.float64,
+    'h_c': numba.float64,
+    'h_opt': numba.float64,
+    'r_h_opt': numba.float64,
+    'l': numba.typeof(np.array([1.0])),
+    'rho': numba.typeof(np.array([[1.0]]))
+})
 class D99_density_calculator:
     def __init__(self, data, xs, ys):
         self.data = data
@@ -89,17 +108,17 @@ class D99_density_calculator:
         self.dy = ys[1] - ys[0]
 
         self.h_c = 1
-        self.h_opt = (3.12 / self.N**(1/6)) * np.sqrt(np.sum(self.data.var(0)) / 2)
-        self.r_h_opt = 1 / self.h_opt
-        f1 = np.array([self._density(x0) for x0 in self.data])
-        self.l = self.h_opt * np.sqrt(np.exp(np.sum(np.log(f1)) / self.N) / f1)
 
-        self.rho = None
+        # self.h_opt = (3.12 / self.N**(1/6)) * np.sqrt(self.data.var(axis=0).sum() / 2)
+        self.h_opt = (3.12 / self.N**(1/6)) * np.sqrt((self.data[:, 0].var() + self.data[:, 1].var()) / 2)
+        self.r_h_opt = 1 / self.h_opt
+        f1 = np.array([self._density(self.data[i]) for i in range(len(self.data))])
+        self.l = self.h_opt * np.sqrt(np.exp(np.sum(np.log(f1)) / self.N) / f1)
 
     def _density(self, x0):
         s = 0
-        for p in self.data:
-            s += kernel((x0 - p) * self.r_h_opt)
+        for i in range(len(self.data)):
+            s += kernel((x0 - self.data[i]) * self.r_h_opt)
         return s * self.r_h_opt*self.r_h_opt / self.N
     def _adaptive_density(self, x0, skip=-1):
         s = 0
@@ -110,15 +129,15 @@ class D99_density_calculator:
         return s / (self.N if skip < 0 else self.N - 1)
 
     def get_density(self):
-        s = np.ndarray((self.nx, self.ny))
+        s = np.empty((self.ny, self.nx))
         for i in range(self.nx):
             for j in range(self.ny):
                 c = np.array((self.xs[i], self.ys[j]))
-                s[i, j] = self._adaptive_density(c)
-        return s.transpose()
+                s[j, i] = self._adaptive_density(c, -1)
+        return s
 
     def M(self, h_c):
-        print('Trying h_c='+str(h_c))
+        # print('Trying h_c='+str(h_c))
 
         self.h_c = h_c
         self.rho = self.get_density()
@@ -190,7 +209,7 @@ class D99_caustic_calculator:
 if __name__=="__main__":
     from matplotlib import pyplot as plt
 
-    N = 1000
+    N = 500
     coords = np.ndarray((N, 2))
     coords[:, 0] = np.abs(np.random.normal(0, 0.5, size=N))
     coords[:, 1] = np.random.normal(0, 0.1, size=N)
