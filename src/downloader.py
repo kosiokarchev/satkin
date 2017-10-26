@@ -23,7 +23,7 @@ class Query:
         self.order = list(order) if order is not None else []
 
     def __call__(self):
-        return 'SELECT TOP 100000 {cols}\nFROM {table}{where}{order}'.format(
+        return 'SELECT {cols}\nFROM {table}{where}{order}'.format(
             cols = ','.join(self.cols),
             table = self.table,
             where = '\nWHERE '+self.where if self.where else '',
@@ -145,8 +145,9 @@ class Downloader:
         # except OSError as e:
         #     if not e.errno == 2:
         #         raise e
-        with open(self.out, 'w'): # Just empty the file, no delete
-            pass
+        if os.path.exists(self.out):
+            open(self.out, 'w').close() # Just empty the file, no delete
+            self.overwritten = True
 
         rep_thread = threading.Thread(target=self.report, daemon=True)
         rep_thread.start()
