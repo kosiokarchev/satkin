@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 import os
 from time import time, sleep
 import threading
@@ -6,13 +5,17 @@ import math
 import requests
 
 SI_PREFIXES = ('n', 'u', 'm', '', 'k', 'M', 'G', 'T')
-def SI(n):
+def SI(n, r=3):
     if n==0:
         return '0 '
-    p = int(math.floor(math.log(abs(n), 1000)))
-    m = n / 1000**p
-    pr = SI_PREFIXES[p+3] if (-3 <= p <= 4) else '10^'+str(3*p)
-    return '{:.0f} {}'.format(m, pr)
+    p10 = int(math.floor(math.log10(abs(n))))
+    p = int(math.floor(p10 / 3))
+    m = round(n, r-1-p10) / 1000**p
+    if m.is_integer():
+        m = int(m)
+    pr = SI_PREFIXES[p+3] if (-3 <= p <= 4) else '10^' + str(3*p)
+
+    return str(m) + ' ' + pr
 
 
 class Query:
@@ -32,7 +35,7 @@ class Query:
 
 
 class Downloader:
-    def __init__(self, query, out, index='galaxyId'):
+    def __init__(self, query, out, index='galaxyId', isline=None):
         self.query = query
         self.out = os.path.abspath(out)
         self.index = index
@@ -50,11 +53,15 @@ class Downloader:
         self.baseQuery = self.query()
 
         self.file_start_time = None
-        self.nfiles = self.nlines = self.nchars = 0
+        self.nfiles = self.nlines = self.nchars = self.datalines = self.datachars = 0
+
+        self.isline = isline
+        if self.isline is None:
+            self.isline = lambda line: not line[0] == '#'
 
         self.sess = None
         self.overwritten = False
-        self.ok = False
+        self.ok = self.error = False
 
         self.writeout_count = 10000
 
@@ -64,6 +71,56 @@ class Downloader:
         with open(pf, encoding='ascii') as f:
             usr, pwd = f.read().replace('\n', '').split(':')
         return usr, pwd
+
+    def report(self):
+        bigsep = '='*80
+        smallsep = '-'*80
+
+        start_time = time()
+        prevchars = self.nchars
+        prevtime = start_time
+
+        print(self)
+        print('\u001b[?25l', end='', flush=True)
+
+        while True:
+            sleep(1)
+
+            dt = time() - prevtime
+            prevtime = time()
+
+            dchars = self.nchars - prevchars
+            prevchars = self.nchars
+            v = dchars / dt
+
+            elapsed_file = prevtime - self.file_start_time
+            elapsed = prevtime - start_time
+            vavg = self.nchars / elapsed
+
+            msg = '[{:.0f}s] ({}: [{:.0f}s]) {}c in {:,} lines ({}c/s, avg: {}c/s) --> {}'.format(
+                elapsed,
+                self.nfiles, elapsed_file,
+                SI(self.datachars), self.datalines,
+                SI(v), SI(vavg),
+                self.maxindex
+            )
+
+            print('\r\u001b[0K' + msg, end='', flush=True)
+
+            if self.ok:
+                break
+            if self.error:
+                print('\u001b[?25h')
+                return
+
+        elapsed = time() - start_time
+
+        print('\u001b[?25h')
+        print('\u001b[32m'+'Download complete!'+'\u001b[m')
+        print('{}c ({:,} lines) in [{:.0f}s] ({}c/s)'.format(
+            SI(self.datachars), self.datalines, elapsed, SI(self.nchars/elapsed)
+        ))
+        print(bigsep)
 
     def download_one(self):
         self.query.where = '{}>{} AND ({})'.format(self.index, self.maxindex, self.basewhere)
@@ -85,9 +142,12 @@ class Downloader:
 
         with open(self.out, 'a', ) as f:
             for line in lines:
-                if line[0] != '#':
+                if self.isline(line):
                     f.write(line+'\n')
                     self.maxindex = line.split(',')[self.indexindex]
+
+                    self.datalines += 1
+                    self.datachars += len(line)
 
                 self.nlines += 1
                 self.nchars += len(line)
@@ -95,56 +155,7 @@ class Downloader:
         if line == '#OK':
             self.ok = True
 
-    def report(self):
-        start_time = time()
-        prevchars = self.nchars
-        prevtime = start_time
-
-        print('\u001b[31m'+'Overwriting'+'\u001b[m' if self.overwritten else 'Saving to',
-              '\u001b[1m'+self.out+'\u001b[m')
-        print('-'*80)
-        print('\u001b[3m'+self.baseQuery+'\u001b[m')
-        print('-'*80)
-        print('\u001b[?25l', end='', flush=True)
-
-        while True:
-            sleep(1)
-
-            dchars = self.nchars - prevchars
-            prevchars = self.nchars
-            dt = time() - prevtime
-            prevtime = time()
-
-            v = dchars / dt
-
-            elapsed_file = prevtime - self.file_start_time
-            elapsed = prevtime - start_time
-            vavg = self.nchars / elapsed
-
-            msg = '[{:.0f}s]'.format(elapsed)
-            msg += ' ({}: [{:.0f}s])'.format(self.nfiles, elapsed_file)
-            msg += ' {:,.0f} lines, {}c'.format(self.nlines, SI(self.nchars))
-            msg += ' ({}c/s, avg: {}c/s)'.format(SI(v), SI(vavg))
-            msg += ' --> {}'.format(self.maxindex)
-
-            print('\r\u001b[0K' + msg, end='', flush=True)
-
-            if self.ok:
-                break
-
-        print()
-        print('\u001b[?25h', end='', flush=True)
-        print('\u001b[32m'+'Download complete!'+'\u001b[m')
-        print('({} lines) [{}s] {}'.format(self.nlines, time()-start_time, SI(self.nchars)))
-        print('='*80)
-
     def go(self):
-        # try:
-        #     os.remove(self.out)
-        #     self.overwritten = True
-        # except OSError as e:
-        #     if not e.errno == 2:
-        #         raise e
         if os.path.exists(self.out):
             open(self.out, 'w').close() # Just empty the file, no delete
             self.overwritten = True
@@ -152,64 +163,25 @@ class Downloader:
         rep_thread = threading.Thread(target=self.report, daemon=True)
         rep_thread.start()
 
-        with requests.Session() as self.sess:
-            self.sess.auth = Downloader.load_pass()
-            self.sess.stream = True
+        try:
+            with requests.Session() as self.sess:
+                self.sess.auth = Downloader.load_pass()
+                self.sess.stream = True
 
-            while not self.ok:
-                self.download_one()
+                while not self.ok:
+                    self.download_one()
 
-        rep_thread.join()
+                rep_thread.join()
+        except BaseException as e:
+            self.error = True
+            rep_thread.join()
+            raise e
 
 
     def __repr__(self):
-        return self.query() + '\n--> ' + self.out
-
-
-TABLES = {'H15-cube': 'Henriques2015a..MRscPlanck1',
-          'H15-cone': lambda n=1: 'Henriques2015a.cones.MRscPlanck1_BC03_{:0>3}'.format(n)}
-COLUMNS = {
-    'H15-cube': [
-        'galaxyId',
-        'phKey', 'x', 'y', 'z', 'velX', 'velY', 'velZ',
-        'redshift', 'lookBackTime',
-        'rvir', 'bulgeSize', 'stellarDiskRadius',
-        'mvir', 'coldGas', 'stellarMass', 'bulgeMass', 'diskMass', 'hotGas', 'ejectedMass', 'blackHoleMass', 'icmStellarMass',
-        'sfr', 'sfrBulge',
-        'type', 'centralMVir', 'centralRvir', 'distanceToCentralGalX', 'distanceToCentralGalY', 'distanceToCentralGalZ',
-        'treeId', 'descendantId', 'mainLeafId', 'treeRootId', 'firstProgenitorId', 'nextProgenitorId', 'lastProgenitorId', 'haloId', 'subHaloId', 'fofCentralId', 'fofSubhaloId'],
-    'H15-cone': [
-        'galaxyId',
-        'ra', 'dec', 'inclination', 'PA',
-        'z_geo', 'z_app', 'vpec',
-        'd_comoving', 'dlum', 'ang_dist'
-    ]
-}
-
-if __name__ == '__main__':
-    cols_central = [
-        'galaxyId',
-        'x', 'y', 'z', 'velX', 'velY', 'velZ', 'stellarSpinX', 'stellarSpinY',
-        'stellarSpinZ',
-        'mvir', 'rvir', 'stellarMass', 'sfr',
-    ]
-    cols_satellites = [
-        'galaxyId', 'fofCentralId',
-        'velX', 'velY', 'velZ',
-        'distanceToCentralGalX', 'distanceToCentralGalY', 'distanceToCentralGalZ'
-    ]
-    #
-    # snapnums = (38, 34, 45)
-    #
-    # for snapnum in snapnums:
-    #     for typewhere, cols in zip(('=0', '>0'), (cols_central, cols_satellites)):
-    #         where = 'snapnum={} AND type{}'.format(snapnum, typewhere)
-    #         q = Query(cols, TABLES['H15-cube'], where)
-    #
-    #         fname = 'data/cube{}{}.csv'.format(snapnum, typewhere)
-    #
-    #         d = Downloader(q, fname)
-    #         d.go()
-    q = Query(cols_central, TABLES['H15-cube'], 'snapnum=34 AND type=0')
-    d = Downloader(q, 'data/cube34=0.csv')
-    d.go()
+        s = '\u001b[31m' + 'Overwriting' + '\u001b[m' if self.overwritten else 'Saving to'
+        s += ' \u001b[1m' + self.out + '\u001b[m' + '\n'
+        s += '-'*80 + '\n'
+        s += '\u001b[3m' + self.baseQuery + '\u001b[m' +'\n'
+        s += '-'*80
+        return s
