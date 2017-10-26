@@ -139,12 +139,14 @@ class Downloader:
         print('='*80)
 
     def go(self):
-        try:
-            os.remove(self.out)
-            self.overwritten = True
-        except OSError as e:
-            if not e.errno == 2:
-                raise e
+        # try:
+        #     os.remove(self.out)
+        #     self.overwritten = True
+        # except OSError as e:
+        #     if not e.errno == 2:
+        #         raise e
+        with open(self.out, 'w'): # Just empty the file, no delete
+            pass
 
         rep_thread = threading.Thread(target=self.report, daemon=True)
         rep_thread.start()
