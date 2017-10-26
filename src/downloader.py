@@ -1,7 +1,18 @@
 #!/usr/bin/env python3
 import os
-from time import time
+from time import time, sleep
+import threading
+import math
 import requests
+
+SI_PREFIXES = ('n', 'u', 'm', '', 'k', 'M', 'G', 'T')
+def SI(n):
+    if n==0:
+        return '0 '
+    p = int(math.floor(math.log(abs(n), 1000)))
+    m = n / 1000**p
+    pr = SI_PREFIXES[p+3] if (-3 <= p <= 4) else '10^'+str(3*p)
+    return '{:.0f} {}'.format(m, pr)
 
 
 class Query:
@@ -12,7 +23,7 @@ class Query:
         self.order = list(order) if order is not None else []
 
     def __call__(self):
-        return 'SELECT {cols}\nFROM {table}{where}{order}'.format(
+        return 'SELECT TOP 100000 {cols}\nFROM {table}{where}{order}'.format(
             cols = ','.join(self.cols),
             table = self.table,
             where = '\nWHERE '+self.where if self.where else '',
@@ -26,6 +37,27 @@ class Downloader:
         self.out = os.path.abspath(out)
         self.index = index
 
+        if self.index not in self.query.cols:
+            self.query.cols.append(self.index)
+        if not (self.query.order and self.query.order[0] == self.index):
+            self.query.order = [self.index+' OPTION (FAST 100000)'] + self.query.order
+
+        self.indexindex = self.query.cols.index(self.index)
+        self.maxindex = 0
+        self.basewhere = self.query.where
+
+        self.baseUrl = 'http://gavo.mpa-garching.mpg.de/MyMillennium/'
+        self.baseQuery = self.query()
+
+        self.file_start_time = None
+        self.nfiles = self.nlines = self.nchars = 0
+
+        self.sess = None
+        self.overwritten = False
+        self.ok = False
+
+        self.writeout_count = 10000
+
     @staticmethod
     def load_pass():
         pf = os.path.join(os.path.dirname(__file__), 'credentials.txt')
@@ -33,81 +65,98 @@ class Downloader:
             usr, pwd = f.read().replace('\n', '').split(':')
         return usr, pwd
 
+    def download_one(self):
+        self.query.where = '{}>{} AND ({})'.format(self.index, self.maxindex, self.basewhere)
+
+        self.file_start_time = time()
+        r = self.sess.get(self.baseUrl, params={'action': 'doQuery',
+                                                'SQL': self.query()})
+        r.raise_for_status()
+
+        lines = r.iter_lines(decode_unicode=True)
+
+        line = next(lines)
+        if not line == '#OK':
+            raise RuntimeError('Query not OK')
+
+        self.nfiles += 1
+        self.nlines += 1
+        self.nchars += len(line)
+
+        with open(self.out, 'a', ) as f:
+            for line in lines:
+                if line[0] != '#':
+                    f.write(line+'\n')
+                    self.maxindex = line.split(',')[self.indexindex]
+
+                self.nlines += 1
+                self.nchars += len(line)
+
+        if line == '#OK':
+            self.ok = True
+
+    def report(self):
+        start_time = time()
+        prevchars = self.nchars
+        prevtime = start_time
+
+        print('\u001b[31m'+'Overwriting'+'\u001b[m' if self.overwritten else 'Saving to',
+              '\u001b[1m'+self.out+'\u001b[m')
+        print('-'*80)
+        print('\u001b[3m'+self.baseQuery+'\u001b[m')
+        print('-'*80)
+        print('\u001b[?25l', end='', flush=True)
+
+        while True:
+            sleep(1)
+
+            dchars = self.nchars - prevchars
+            prevchars = self.nchars
+            dt = time() - prevtime
+            prevtime = time()
+
+            v = dchars / dt
+
+            elapsed_file = prevtime - self.file_start_time
+            elapsed = prevtime - start_time
+            vavg = self.nchars / elapsed
+
+            msg = '[{:.0f}s]'.format(elapsed)
+            msg += ' ({}: [{:.0f}s])'.format(self.nfiles, elapsed_file)
+            msg += ' {:,.0f} lines, {}c'.format(self.nlines, SI(self.nchars))
+            msg += ' ({}c/s, avg: {}c/s)'.format(SI(v), SI(vavg))
+            msg += ' --> {}'.format(self.maxindex)
+
+            print('\r\u001b[0K' + msg, end='', flush=True)
+
+            if self.ok:
+                break
+
+        print()
+        print('\u001b[?25h', end='', flush=True)
+        print('\u001b[32m'+'Download complete!'+'\u001b[m')
+        print('({} lines) [{}s] {}'.format(self.nlines, time()-start_time, SI(self.nchars)))
+        print('='*80)
+
     def go(self):
-        baseUrl = 'http://gavo.mpa-garching.mpg.de/MyMillennium/'
+        try:
+            os.remove(self.out)
+            self.overwritten = True
+        except OSError as e:
+            if not e.errno == 2:
+                raise e
 
-        if self.index not in self.query.cols:
-            self.query.cols.append(self.index)
-        if not (self.query.order and self.query.order[0] == self.index):
-            self.query.order = [self.index+' OPTION (FAST 100000)'] + self.query.order
+        rep_thread = threading.Thread(target=self.report, daemon=True)
+        rep_thread.start()
 
-        indexindex = self.query.cols.index(self.index)
-        maxindex = 0
-        basewhere = self.query.where
+        with requests.Session() as self.sess:
+            self.sess.auth = Downloader.load_pass()
+            self.sess.stream = True
 
-        with requests.Session() as sess:
-            sess.auth = Downloader.load_pass()
-            sess.stream = True
+            while not self.ok:
+                self.download_one()
 
-            print('='*80)
-            print('='*80)
-            print(self)
-            print('='*80)
-            print('='*80)
-
-            while True:
-                self.query.where = '{}>{} AND ({})'.format(self.index, maxindex, basewhere)
-
-                q = self.query()
-
-                start_time = time()
-
-                r = sess.get(baseUrl, params={'action': 'doQuery', 'SQL': q})
-                r.raise_for_status()
-
-                lines = r.iter_lines(decode_unicode=True)
-
-                line = next(lines)
-                if not line == '#OK':
-                    raise RuntimeError('Query not OK')
-
-                nlines = 1
-                nchars = len(line)
-                with open(self.out, 'a') as f:
-                    for line in lines:
-                        if line[0] == '#':
-                            pass
-                            # print('Ignoring as comment:', line)
-                        else:
-                            f.write(line + '\n')
-                            maxindex = line.split(',')[indexindex]
-
-                        nlines += 1
-                        nchars += len(line)
-                        dt = time() - start_time
-
-
-                        if nlines % 10000 == 0:
-                            msg = '({:,.0f} lines)'.format(nlines)
-                            msg += ' [{:.0f}s]'.format(dt)
-
-                            if nchars < 1000000:
-                                msg += ' {:.0f} kc'.format(nchars / 1000)
-                            else:
-                                msg += ' {:.0f} Mc'.format(nchars / 1000000)
-
-                            print(msg+'\u001b[0K\r', end='', flush=True)
-
-                print()
-                print('Last line is', line)
-                print('maxindex is', maxindex)
-                print('=' * 80)
-
-                if line == '#OK':
-                    break
-
-        print('DOWNLOAD COMPLETE!!')
-        print('Data saved in', self.out)
+        rep_thread.join()
 
 
     def __repr__(self):
@@ -146,15 +195,18 @@ if __name__ == '__main__':
         'velX', 'velY', 'velZ',
         'distanceToCentralGalX', 'distanceToCentralGalY', 'distanceToCentralGalZ'
     ]
-
-    snapnums = (38, 34, 45)
-
-    for snapnum in snapnums:
-        for typewhere, cols in zip(('=0', '>0'), (cols_central, cols_satellites)):
-            where = 'snapnum={} AND type{}'.format(snapnum, typewhere)
-            q = Query(cols, TABLES['H15-cube'], where)
-
-            fname = 'data/cube{}{}.csv'.format(snapnum, typewhere)
-
-            d = Downloader(q, fname)
-            d.go()
+    #
+    # snapnums = (38, 34, 45)
+    #
+    # for snapnum in snapnums:
+    #     for typewhere, cols in zip(('=0', '>0'), (cols_central, cols_satellites)):
+    #         where = 'snapnum={} AND type{}'.format(snapnum, typewhere)
+    #         q = Query(cols, TABLES['H15-cube'], where)
+    #
+    #         fname = 'data/cube{}{}.csv'.format(snapnum, typewhere)
+    #
+    #         d = Downloader(q, fname)
+    #         d.go()
+    q = Query(cols_central, TABLES['H15-cube'], 'snapnum=34 AND type=0')
+    d = Downloader(q, 'data/cube34=0.csv')
+    d.go()
