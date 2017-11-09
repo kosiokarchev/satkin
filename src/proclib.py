@@ -95,9 +95,9 @@ class SWProcedure(Procedure):
     def load(self):
         print('Loading table...')
         t = Table.read(FILES['sats'](self.sn))
-        t = t[np.where(t['stellarMass'] > 1e6)]
         t['mv'] = 10 + np.log10(t['mvir'])
         t['ms'] = 10 + np.log10(t['stellarMass'])
+        t = t[np.where(t['stellarMass'] > 6)]
         self.sats = t
 
     def bin(self, mname, left, width):
