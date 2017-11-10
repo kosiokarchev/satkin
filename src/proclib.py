@@ -101,7 +101,7 @@ class SWProcedure(Procedure):
         self.sats = t
 
     def bin(self, mname, left, width):
-        print('Binning')
+        print('Binning by', mname)
         self.sats['bin'] = np.floor_divide(self.sats[mname] - left, width)
         binned = self.sats.group_by('bin')
 
@@ -146,7 +146,7 @@ class SWProcedure(Procedure):
 
         print('Plotting...')
         plt.sca(ax[1])
-        plt.plot(X, Y / X)
+        plt.plot(X, Y['mean'] / Y['sigmax'])
         plt.plot(xlim, [np.sqrt(3)]*2, ':')
         plt.plot(xlim, [np.sqrt(8 / np.pi)]*2, ':')
 
