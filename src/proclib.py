@@ -101,9 +101,11 @@ class SWProcedure(Procedure):
         self.sats = t
 
     def bin(self, mname, left, width):
+        print('Binning')
         self.sats['bin'] = np.floor_divide(self.sats[mname] - left, width)
         binned = self.sats.group_by('bin')
 
+        print('Aggregating')
         res = binned['bin', 'vpec', 'vpecx', 'vpecy', 'vpecz'].groups.aggregate(np.std)
 
         res.rename_column('vpec', 'sigma')
@@ -125,7 +127,7 @@ class SWProcedure(Procedure):
                                             'hspace': 0})
 
         plt.sca(ax[0])
-        r = np.random.randint(int(len(sats) / sparse))
+        r = np.random.randint(int(len(self.sats) / sparse))
         plt.plot(self.sats[mname][r], self.sats['vpec'][r], ',', label='_nolegend_')
 
         X = self.stdev[mname]
@@ -165,7 +167,9 @@ class SWProcedure(Procedure):
             self.bin(mname, xlim[0], BINWIDTH)
 
             if write:
-                self.stdev.write(FILES['sigmas'](self.sn, mname, self.observe), overwrite=True)
+                fname = FILES['sigmas'](self.sn, mname, self.observe)
+                print('Writing to', fname)
+                self.stdev.write(fname, overwrite=True)
 
             self.plot(mname, xlim)
             fname = FILES['plotsigmas'](sn)
