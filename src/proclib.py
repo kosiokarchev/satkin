@@ -172,7 +172,7 @@ class SWProcedure(Procedure):
                 self.stdev.write(fname, overwrite=True)
 
             self.plot(mname, xlim)
-            fname = FILES['plotsigmas'](self.sn)
+            fname = FILES['plotsigmas'](self.sn, mname, self.observe)
             plt.savefig(fname)
             print('Figure saved:', fname)
             plt.close()

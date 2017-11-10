@@ -23,8 +23,8 @@ FILES = {
     'masses': lambda sn: 'data/masses{}.fits'.format(sn),
     '3dbins': lambda sn: 'data/3dbins{}.pickle'.format(sn),
     'sats': lambda sn: 'data/sats{}.fits'.format(sn),
-    'sigmas': lambda sn, mname='stellarMass', observe=False: 'data/{}sigma-{}{}.csv'.format('observe/' if observe else '', mname, sn),
-    'plotsigmas': lambda sn, mname='stellarMass', observe=False: 'plots/{}sigma-{}{}.pdf'.format('observe/' if observe else '', mname, sn)
+    'sigmas': lambda sn, mname='stellarMass', observe=False: 'data/{}sigmas-{}{}.csv'.format('observe/' if observe else '', mname, sn),
+    'plotsigmas': lambda sn, mname='stellarMass', observe=False: 'plots/{}sigmas-{}{}.pdf'.format('observe/' if observe else '', mname, sn)
 }
 
 
