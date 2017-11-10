@@ -95,8 +95,8 @@ class SWProcedure(Procedure):
     def load(self):
         print('Loading table...')
         t = Table.read(FILES['sats'](self.sn))
-        t['mv'] = 10 + np.log10(t['mvir'])
-        t['ms'] = 10 + np.log10(t['stellarMass'])
+        t['mvir'] = 10 + np.log10(t['mvir'])
+        t['stellarMass'] = 10 + np.log10(t['stellarMass'])
         t = t[np.where(t['stellarMass'] > 6)]
         self.sats = t
 
