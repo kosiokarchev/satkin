@@ -127,7 +127,7 @@ class SWProcedure(Procedure):
                                             'hspace': 0})
 
         plt.sca(ax[0])
-        r = np.random.randint(int(len(self.sats) / sparse))
+        r = np.random.randint(0, len(self.sats), int(len(self.sats) / sparse))
         plt.plot(self.sats[mname][r], self.sats['vpec'][r], ',', label='_nolegend_')
 
         X = self.stdev[mname]
