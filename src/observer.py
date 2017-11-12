@@ -10,8 +10,7 @@ class Regressor():
         for p in params:
             cols[p] = []
         for sn in sns:
-            r = Table.read('data/reg-mvir{}.csv'.format(sn),
-                           format='ascii.ecsv')
+            r = Table.read(FILES['sw-reg-mvir'](sn), format='ascii.ecsv')
             for p in params:
                 cols[p].append(r.meta[p])
 

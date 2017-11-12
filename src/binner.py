@@ -87,7 +87,6 @@ class bin2d:
         X, Y = self.t[self.x], self.t[self.y]
         if sparse > 1:
             r = (np.random.random(int(len(self.t) / sparse)) * len(self.t)).astype(int)
-            print(len(r))
             X, Y = X[r], Y[r]
         plt.plot(X, Y, 'r,', zorder=-1, label=label)
     def plot_bins(self,
