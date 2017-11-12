@@ -42,3 +42,4 @@ def percentile_wrapper(q):
 from binner import bin2d
 from observer import Observer, Regressor
 from data import Data
+from proclib import *

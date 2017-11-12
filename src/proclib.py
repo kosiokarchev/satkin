@@ -83,14 +83,13 @@ class Procedure:
         raise NotImplementedError
 
 
-
 class SWProcedure(Procedure):
     def __init__(self, sn, observe):
         Procedure.__init__(self, sn, observe)
         self.sats = None
 
     def restore(self, mname='stellarMass'):
-        self.stdev = Table.read(FILES['sigmas'](sn, mname, self.observe))
+        self.stdev = Table.read(FILES['sigmas'](self.sn, mname, self.observe))
 
     def load(self):
         print('Loading table...')
@@ -183,7 +182,8 @@ class SWProcedure(Procedure):
 
         data = Table.read(FILES['sigmas'](self.sn, 'stellarMass', self.observe))
 
-        data['mvir'] = np.power((data['sigmax'] / amp), 1 / exp)
+        data['mvir'] = np.log10(data['sigmax'] / amp) / exp
+        # data['mvir'] = np.log10(np.power((data['sigmax'] / amp), 1 / exp))
 
         data['relerr_mvir'] = np.sqrt(
             ((1 / exp) * (err_amp / amp)) ** 2 + (
