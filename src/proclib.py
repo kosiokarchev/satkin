@@ -250,9 +250,9 @@ class HWProcedure(Procedure):
             fname = FILES['sats'](self.sn)
             print('Loading table', fname)
             t = Table.read(fname)
+            t = t[np.where(t['stellarMass'] > 1e-4)]
             t['mvir'] = 10 + np.log10(t['mvir'])
             t['stellarMass'] = 10 + np.log10(t['stellarMass'])
-            t = t[np.where(t['stellarMass'] > 6)]
             self.sats = t
     def load_rms(self):
         if self.rms is None:
@@ -322,7 +322,7 @@ class HWProcedure(Procedure):
         self.calculate()
 
         if write:
-            fname = FILES['hw-rms'](sn, self.observe)
+            fname = FILES['hw-rms'](self.sn, self.observe)
             print('Writing to', fname)
             self.rms.write(fname, overwrite=True)
 
