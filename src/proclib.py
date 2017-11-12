@@ -70,6 +70,8 @@ class Procedure:
         self.sn = sn
         self.observe = observe
         self.stdev = None
+        self.regression = None
+        self.reg_file = None
 
     def restore(self):
         raise NotImplementedError
@@ -81,6 +83,15 @@ class Procedure:
         raise NotImplementedError
     def go(self):
         raise NotImplementedError
+
+    def write_regression(self):
+        with open(self.reg_file, 'w') as f:
+            f.write(json.dumps(self.regression))
+    def get_regression(self):
+        if self.regression is None:
+            with open(self.reg_file) as f:
+                self.regression = json.load(f)
+        return self.regression
 
 
 class SWProcedure(Procedure):
@@ -188,14 +199,19 @@ class SWProcedure(Procedure):
         t = self.stdev
         indices, fit = fit_or(models.PowerLawModel(), t['sigmax'], x=np.power(10, t['mvir']))
 
-        t.meta['exp'] = fit.params['exponent'].value
-        t.meta['err_exp'] = fit.params['exponent'].stderr
-        t.meta['amp'] = fit.params['amplitude'].value
-        t.meta['err_amp'] = fit.params['amplitude'].stderr
-        t.meta['indices'] = list(indices)
-
         if write:
             t.write(FILES['sw-reg-mvir'], format='ascii.ecsv', overwrite=True)
+
+        self.regression = {
+            'exp': fit.params['exponent'].value,
+            'err_exp': fit.params['exponent'].stderr,
+            'amp': fit.params['amplitude'].value,
+            'err_amp': fit.params['amplitude'].value,
+            'indices': list(indices)
+        }
+
+        if write:
+            self.write_regression()
 
     def predict(self):
         params = Regressor.get()[self.sn]
@@ -221,10 +237,13 @@ class HWProcedure(Procedure):
         Procedure.__init__(self, sn, observe)
         self.sats = None
         self.rms = None
+        self.predicted = None
+
+        self.reg_file = FILES['hw-reg-mvir'](sn)
 
     def restore(self):
         if self.stdev is None:
-            self.stdev = Table.read()
+            self.stdev = Table.read(FILES['hw-sigmas'](self.sn, self.observe))
 
     def load_sats(self):
         if self.sats is None:
@@ -280,19 +299,19 @@ class HWProcedure(Procedure):
     def regress(self, write=True):
         self.load_rms()
 
-        t = self.rms
-        indices, fit = fit_or(models.PowerLawModel(), t['rmsx'], x=np.power(10, t['mvir']))
+        t = deal(self.rms)
+        print('Regressing...')
+        indices, fit = fit_or(models.PowerLawModel(), t['rmsx'], x=np.power(10, t['mv']))
 
-        t.meta['exp'] = fit.params['exponent'].value
-        t.meta['err_exp'] = fit.params['exponent'].stderr
-        t.meta['amp'] = fit.params['amplitude'].value
-        t.meta['err_amp'] = fit.params['amplitude'].stderr
+        self.regression = {
+            'exp': fit.params['exponent'].value,
+            'err_exp': fit.params['exponent'].stderr,
+            'amp': fit.params['amplitude'].value,
+            'err_amp': fit.params['amplitude'].value
+        }
 
         if write:
-            t.write(FILES['hw-reg-mvir'](sn), format='ascii.ecsv', overwrite=True)
-
-    def get_regression(self):
-        pass
+            self.write_regression()
 
     def go(self, write=True):
         self.load_sats()
@@ -310,6 +329,26 @@ class HWProcedure(Procedure):
         self.bin(PLOTDATA['bins']['stellarMass'][0], BINWIDTH)
 
         if write:
-            fname = FILES['hw-sigmas'](sn, self.observe)
+            fname = FILES['hw-sigmas'](self.sn, self.observe)
             print('Writing to', fname)
             self.stdev.write(fname, overwrite=True)
+
+        self.regress(write)
+
+    def predict(self):
+        p = self.get_regression()
+        self.load_rms()
+
+        t = deal(self.rms['stellarMass', 'mvir', 'rmsx'])
+        t['mv'] = np.log10(t['rmsx'] / p['amp']) / p['exp']
+
+        b = binX(t, 'ms', 'mv', bins=PLOTDATA['bins']['stellarMass'],
+                 funcsx={'mean': np.mean},
+                 funcsy={
+                     'mean': np.mean, 'median': np.median,
+                     'p16': percentile_wrapper(16),
+                     'p84': percentile_wrapper(84)})
+        self.predicted = b
+
+        return Data(mstar=b[0]['mean'], mvir=b[1]['median'],
+                    p16=b[1]['p16'], p84=b[1]['p84'])
