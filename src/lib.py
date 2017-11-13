@@ -33,7 +33,7 @@ FILES = {
     'plot-sw-sigmas': lambda sn, mname='stellarMass', observe=False: 'plots/{}sigmas-{}{}.pdf'.format('observe/' if observe else '', mname, sn),
 
     'hw-reg-mvir': lambda sn: 'data/hw-reg-mvir{}.json'.format(sn),
-    'hw-rms': lambda sn, observe=False: 'data/{}rms-hw{}.fits'.format('observe/' if observe else '', sn),
+    'hw-rms': lambda sn, observe=False: 'data/{}hw-rms{}.fits'.format('observe/' if observe else '', sn),
     'hwp-sigmas': lambda sn, observe=False: 'data/{}hwp-sigmas{}.csv'.format('observe/' if observe else '', sn)
 }
 
