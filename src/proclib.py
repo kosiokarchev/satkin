@@ -276,6 +276,8 @@ class HWProcedure(Procedure):
         return self.rms
 
     def calculate(self):
+        self.load_sats()
+
         print('Grouping by fofCentralId...')
         b = self.sats.group_by('fofCentralId')
 
@@ -296,6 +298,8 @@ class HWProcedure(Procedure):
         self.rms = rms
 
     def bin(self, left, width):
+        self.load_rms()
+
         print('Binning in stellarMass')
         self.rms['bin'] = np.floor_divide(self.rms['stellarMass'] - left, width)
         binned = self.rms.group_by('bin')
