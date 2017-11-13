@@ -271,6 +271,10 @@ class HWProcedure(Procedure):
             print('Loading table', fname)
             self.rms = Table.read(fname)
 
+    def get_subset(self):
+        self.load_rms()
+        return self.rms
+
     def calculate(self):
         print('Grouping by fofCentralId...')
         b = self.sats.group_by('fofCentralId')
