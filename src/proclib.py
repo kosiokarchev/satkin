@@ -309,7 +309,7 @@ class HWProcedure(Procedure):
             binned[col] = binned[col]**2
 
         print('Calculating mean variance...')
-        res = binned[['bin'] + cols].aggregate(np.mean)
+        res = binned[['bin'] + cols].groups.aggregate(np.mean)
         res['stellarMass'] = left + (res['bin'] + 0.5) * width
         res['N'] = binned.groups.indices[1:] - binned.groups.indices[:-1]
 
