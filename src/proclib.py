@@ -242,8 +242,11 @@ class HWProcedure(Procedure):
         self.reg_file = FILES['hw-reg-mvir'](sn)
 
     def restore(self):
-        if self.stdev is None:
-            self.stdev = Table.read(FILES['hw-sigmas'](self.sn, self.observe))
+        try:
+            if self.stdev is None:
+                self.stdev = Table.read(FILES['hw-sigmas'](self.sn, self.observe))
+        except:
+            pass
 
     def load_sats(self):
         if self.sats is None:

@@ -58,20 +58,19 @@ class bin2d:
         self.y = y
 
     def load(self, fname):
-        with open(fname, 'rb') as f:
-            binx, biny = pickle.load(f, encoding='bytes')
-
-        for b in binx, biny:
-            for c in b:
-                for key in tuple(c.keys()):
-                    if isinstance(key, bytes):
-                        c[key.decode()] = c[key]
-                        del c[key]
-
-        self.binx, self.biny = binx, biny
+        with open(fname) as f:
+            bins = json.load(f)
+        self.binx, self.biny = [
+            [{key: np.array(b[i][key]) for key in b[i]} for i in (0, 1)]
+            for b in bins
+        ]
     def save(self, fname):
-        with open(fname, 'wb') as f:
-            pickle.dump((self.binx, self.biny), f)
+        bins = [
+            [{key: b[i][key].tolist() for key in b[i]} for i in (0, 1)]
+            for b in (self.binx, self.biny)
+        ]
+        with open(fname, 'w') as f:
+            json.dump(bins, f)
 
     def compute(self, binsx, binsy):
         self.binx, self.biny = bin2D(

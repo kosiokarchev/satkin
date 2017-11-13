@@ -25,14 +25,14 @@ FILES = {
     'cube': lambda sn, sats=False: 'data/cube{}{}0.fits'.format(sn, '>' if sats else '='),
     'masses': lambda sn: 'data/masses{}.fits'.format(sn),
     'nums': lambda sn: 'data/nums{}.fits'.format(sn),
-    '3dbins': lambda sn: 'data/3dbins{}.pickle'.format(sn),
+    '3dbins': lambda sn: 'data/3dbins{}.json'.format(sn),
     'sats': lambda sn: 'data/sats{}.fits'.format(sn),
 
-    'sw-reg-mvir': lambda sn: 'data/sw-reg-mvir.csv'.format(sn),
+    'sw-reg-mvir': lambda sn: 'data/sw-reg-mvir{}.csv'.format(sn),
     'sw-sigmas': lambda sn, mname='stellarMass', observe=False: 'data/{}sigmas-{}{}.csv'.format('observe/' if observe else '', mname, sn),
     'plot-sw-sigmas': lambda sn, mname='stellarMass', observe=False: 'plots/{}sigmas-{}{}.pdf'.format('observe/' if observe else '', mname, sn),
 
-    'hw-reg-mvir': lambda sn: 'data/hw-reg-mvir.json'.format(sn),
+    'hw-reg-mvir': lambda sn: 'data/hw-reg-mvir{}.json'.format(sn),
     'hw-rms': lambda sn, observe=False: 'data/{}rms-hw{}.fits'.format('observe/' if observe else '', sn),
     'hw-paper': lambda sn, observe=False: 'data/{}hw-paper{}.csv'.format('observe/' if observe else '', sn)
 }
