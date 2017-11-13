@@ -348,7 +348,7 @@ class HWProcedure(Procedure):
         self.bin(PLOTDATA['bins']['stellarMass'][0], BINWIDTH)
 
         if write:
-            fname = FILES['hw-sigmas'](self.sn, self.observe)
+            fname = FILES['hwp-sigmas'](self.sn, self.observe)
             print('Writing to', fname)
             self.stdev.write(fname, overwrite=True)
 

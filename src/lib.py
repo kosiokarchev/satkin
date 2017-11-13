@@ -34,7 +34,7 @@ FILES = {
 
     'hw-reg-mvir': lambda sn: 'data/hw-reg-mvir{}.json'.format(sn),
     'hw-rms': lambda sn, observe=False: 'data/{}rms-hw{}.fits'.format('observe/' if observe else '', sn),
-    'hw-paper': lambda sn, observe=False: 'data/{}hw-paper{}.csv'.format('observe/' if observe else '', sn)
+    'hwp-sigmas': lambda sn, observe=False: 'data/{}hwp-sigmas{}.csv'.format('observe/' if observe else '', sn)
 }
 
 
