@@ -301,8 +301,9 @@ class HWProcedure(Procedure):
         self.load_rms()
 
         print('Binning in stellarMass')
-        self.rms['bin'] = np.floor_divide(self.rms['stellarMass'] - left, width)
-        binned = self.rms.group_by('bin')
+        t = deal(self.rms)
+        t['bin'] = np.floor_divide(t['ms'] - left, width)
+        binned = t.group_by('bin')
 
         cols = ['rms', 'rmsx', 'rmsy', 'rmsz']
         for col in cols:
