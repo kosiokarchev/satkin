@@ -148,10 +148,10 @@ class SWProcedure(SigmaPredictProcedure):
     def __init__(self, sn, observe):
         Procedure.__init__(self, sn, observe,
                            reg_file=FILES['sw-reg'],
-                           stdev_file=FILES['sw-sigmas'](self.sn, 'stellarMass', self.observe))
+                           stdev_file=FILES['sw-sigmas'](sn, 'stellarMass', observe))
 
         self.mvir = None
-        self.mvir_file = FILES['sw-sigmas'](self.sn, 'mvir', self.observe)
+        self.mvir_file = FILES['sw-sigmas'](sn, 'mvir', observe)
 
     def load_mvir(self):
         if self.mvir is None:
@@ -274,7 +274,7 @@ class HWProcedure(Procedure):
                            stdev_file=stdev_file)
 
         self.rms = None
-        self.rms_file = FILES['hw-rms'](self.sn, self.observe)
+        self.rms_file = FILES['hw-rms'](sn, observe)
 
     def bin(self, left, width, write=True):
         raise NotImplementedError
@@ -351,7 +351,7 @@ class HWProcedure(Procedure):
 class HWPProcedure(SigmaPredictProcedure, HWProcedure):
     def __init__(self, sn, observe):
         HWProcedure.__init__(self, sn, observe,
-                             stdev_file=FILES['hwp-sigmas'](sn, self.observe))
+                             stdev_file=FILES['hwp-sigmas'](sn, observe))
 
     def bin(self, left, width, write=True):
         self.load_rms()
@@ -382,7 +382,7 @@ class HWPProcedure(SigmaPredictProcedure, HWProcedure):
 class HWMProcedure(SigmaPredictProcedure, HWProcedure):
     def __init__(self, sn, observe):
         HWProcedure.__init__(self, sn, observe,
-                             stdev_file=FILES['hwm-sigmas'](sn, self.observe))
+                             stdev_file=FILES['hwm-sigmas'](sn, observe))
 
     def bin(self, left, width, write=True):
         self.load_rms()
