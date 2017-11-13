@@ -16,7 +16,7 @@ SNDATA = {
 BINWIDTH = 0.1
 PLOTDATA = {
     'bins': {
-        'mvir': np.arange(10, 15 + BINWIDTH, BINWIDTH),
+        'mvir': np.arange(10, 14 + BINWIDTH, BINWIDTH),
         'stellarMass': np.arange(7, 12 + BINWIDTH, BINWIDTH)
     }
 }

@@ -72,6 +72,7 @@ class Procedure:
         self.stdev = None
         self.regression = None
         self.reg_file = None
+        self.predictions = None
 
     def restore(self):
         raise NotImplementedError
@@ -83,6 +84,11 @@ class Procedure:
         raise NotImplementedError
     def go(self):
         raise NotImplementedError
+
+    def get_predictions(self):
+        if self.predictions is None:
+            self.predict()
+        return self.predictions
 
     def write_regression(self):
         with open(self.reg_file, 'w') as f:
@@ -227,9 +233,11 @@ class SWProcedure(Procedure):
             np.log(data['mvir']) * (err_exp / exp)) ** 2
         )
 
-        return Data(mvir=data['mvir'], mstar=data['stellarMass'],
-                    relerr_mvir=data['relerr_mvir'],
-                    N=data['N'])
+        self.predictions = {
+            'mean': Data(mvir=data['mvir'], mstar=data['stellarMass'],
+                         err_mvir=data['relerr_mvir'] / np.log(10),
+                         N=data['N'])
+        }
 
 
 class HWProcedure(Procedure):
@@ -348,10 +356,13 @@ class HWProcedure(Procedure):
         b = binX(t, 'ms', 'mv', bins=PLOTDATA['bins']['stellarMass'],
                  funcsx={'mean': np.mean},
                  funcsy={
-                     'mean': np.mean, 'median': np.median,
+                     'mean': np.mean, 'median': np.median, 'std': np.std,
                      'p16': percentile_wrapper(16),
                      'p84': percentile_wrapper(84)})
         self.predicted = b
 
-        return Data(mstar=b[0]['mean'], mvir=b[1]['median'],
-                    p16=b[1]['p16'], p84=b[1]['p84'])
+        self.predictions = {
+            'median': Data(mstar=b[0]['mean'], mvir=b[1]['median'],
+                           p16=b[1]['p16'], p84=b[1]['p84']),
+            'mean': Data(mstar=b[0]['mean'], mvir=b[1]['mean'], err_mvir=b[1]['std'])
+        }
