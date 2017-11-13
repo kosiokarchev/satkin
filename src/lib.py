@@ -16,7 +16,7 @@ SNDATA = {
 BINWIDTH = 0.1
 PLOTDATA = {
     'bins': {
-        'mvir': np.arange(10, 14 + BINWIDTH, BINWIDTH),
+        'mvir': np.arange(10, 15 + BINWIDTH, BINWIDTH),
         'stellarMass': np.arange(7, 12 + BINWIDTH, BINWIDTH)
     }
 }
@@ -28,13 +28,15 @@ FILES = {
     '3dbins': lambda sn: 'data/3dbins{}.json'.format(sn),
     'sats': lambda sn: 'data/sats{}.fits'.format(sn),
 
+    'sw-reg': 'data/sw-reg.json',
     'sw-reg-mvir': lambda sn: 'data/sw-reg-mvir{}.csv'.format(sn),
-    'sw-sigmas': lambda sn, mname='stellarMass', observe=False: 'data/{}sigmas-{}{}.csv'.format('observe/' if observe else '', mname, sn),
+    'sw-sigmas': lambda sn, mname='stellarMass', observe=False: 'data/{}sw-sigmas-{}{}.csv'.format('observe/' if observe else '', mname, sn),
     'plot-sw-sigmas': lambda sn, mname='stellarMass', observe=False: 'plots/{}sigmas-{}{}.pdf'.format('observe/' if observe else '', mname, sn),
 
-    'hw-reg-mvir': lambda sn: 'data/hw-reg-mvir{}.json'.format(sn),
+    'hw-reg': 'data/hw-reg.json',
     'hw-rms': lambda sn, observe=False: 'data/{}hw-rms{}.fits'.format('observe/' if observe else '', sn),
-    'hwp-sigmas': lambda sn, observe=False: 'data/{}hwp-sigmas{}.csv'.format('observe/' if observe else '', sn)
+    'hwp-sigmas': lambda sn, observe=False: 'data/{}hwp-sigmas{}.csv'.format('observe/' if observe else '', sn),
+    'hwm-sigmas': lambda sn, observe=False: 'data/{}hwm-sigmas{}.csv'.format('observe/' if observe else '', sn)
 }
 
 

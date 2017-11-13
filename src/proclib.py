@@ -66,23 +66,45 @@ def joinsats(sn, clean=False, outname='data/satsnum{}.fits', **kwargs):
 
 
 class Procedure:
-    def __init__(self, sn, observe):
+    def __init__(self, sn, observe, stdev_file, reg_file):
         self.sn = sn
         self.observe = observe
+
+        self.sats = None
         self.stdev = None
         self.regression = None
-        self.reg_file = None
         self.predictions = None
 
-    def restore(self):
+        self.stdev_file = stdev_file
+        self.reg_file = reg_file
+
+
+    def load_sats(self):
+        if self.sats is None:
+            fname = FILES['sats'](self.sn)
+            print('Loading table', fname)
+            t = Table.read(fname)
+            t = t[np.where(t['stellarMass'] > 1e-4)]
+            t['mvir'] = 10 + np.log10(t['mvir'])
+            t['stellarMass'] = 10 + np.log10(t['stellarMass'])
+            self.sats = t
+
+    def load_stdev(self):
+        if self.stdev is None:
+            print('Loading table', self.stdev_file)
+            self.stdev = Table.read(self.stdev_file)
+    def write_stdev(self):
+        print('Writing to', self.stdev_file)
+        self.stdev.write(self.stdev_file, overwrite=True)
+
+    def get_subset(self):
         raise NotImplementedError
-    def plot(self, *args, **kwargs):
-        raise NotImplementedError
+
     def regress(self):
         raise NotImplementedError
-    def predict(self):
-        raise NotImplementedError
     def go(self):
+        raise NotImplementedError
+    def predict(self):
         raise NotImplementedError
 
     def get_predictions(self):
@@ -91,40 +113,65 @@ class Procedure:
         return self.predictions
 
     def write_regression(self):
+        try:
+            with open(self.reg_file) as f:
+                reg = json.load(f)
+        except FileNotFoundError:
+            reg = dict()
+        reg[str(self.sn)] = self.regression
         with open(self.reg_file, 'w') as f:
-            f.write(json.dumps(self.regression))
+            f.write(json.dumps(reg))
     def get_regression(self):
         if self.regression is None:
             with open(self.reg_file) as f:
-                self.regression = json.load(f)
+                self.regression = json.load(f)[str(self.sn)]
         return self.regression
 
+class SigmaPredictProcedure(Procedure):
+    def predict(self):
+        p = self.get_regression()
+        self.load_stdev()
 
-class SWProcedure(Procedure):
+        mvir = np.log10(self.stdev['sigmax'] / p['amp']) / p['exp']
+
+        relerr_mvir = np.sqrt(
+            ((1 / p['exp']) * (p['err_amp'] / p['amp'])) ** 2
+            + (np.log(mvir) * (p['err_exp'] / p['exp'])) ** 2
+        )
+
+        self.predictions = Data(mvir=mvir, mstar=self.stdev['stellarMass'],
+                                err_mvir=relerr_mvir / np.log(10),
+                                N=self.stdev['N'])
+
+
+class SWProcedure(SigmaPredictProcedure):
     def __init__(self, sn, observe):
-        Procedure.__init__(self, sn, observe)
-        self.sats = None
+        Procedure.__init__(self, sn, observe,
+                           reg_file=FILES['sw-reg'],
+                           stdev_file=FILES['sw-sigmas'](self.sn, 'stellarMass', self.observe))
 
-    def restore(self, mname='stellarMass'):
-        if self.stdev is None:
-            self.stdev = Table.read(FILES['sw-sigmas'](self.sn, mname, self.observe))
+        self.mvir = None
+        self.mvir_file = FILES['sw-sigmas'](self.sn, 'mvir', self.observe)
 
-    def load_sats(self):
-        if self.sats is None:
-            fname = FILES['sats'](self.sn)
-            print('Loading table', fname)
-            t = Table.read(fname)
-            t['mvir'] = 10 + np.log10(t['mvir'])
-            t['stellarMass'] = 10 + np.log10(t['stellarMass'])
-            t = t[np.where(t['stellarMass'] > 6)]
-            self.sats = t
-
-    def write_stdev(self, mname):
-        fname = FILES['sw-sigmas'](self.sn, mname, self.observe)
+    def load_mvir(self):
+        if self.mvir is None:
+            print('Loading table', self.mvir_file)
+            self.mvir = Table.read(self.mvir_file)
+    def write_mvir(self):
+        fname = FILES['sw-sigmas'](self.sn, 'mvir', self.observe)
         print('Writing to', fname)
-        self.stdev.write(fname, overwrite=True)
+        self.mvir.write(fname, overwrite=True)
 
-    def bin(self, mname, left, width):
+    def get_subset(self):
+        t = Table.read(FILES['nums'](self.sn))
+        return t[np.where(t['num_sat'] > 2)]
+
+    def store_stdev(self, stdev):
+        self.stdev = stdev
+    def store_mvir(self, mvir):
+        self.mvir = mvir
+
+    def bin(self, left, width, mname, store, write=None):
         print('Binning by', mname)
         self.sats['bin'] = np.floor_divide(self.sats[mname] - left, width)
         binned = self.sats.group_by('bin')
@@ -142,7 +189,10 @@ class SWProcedure(Procedure):
         res[mname] = left + (res['bin'] + 0.5) * width
         res['N'] = binned['fofCentralId'].groups.aggregate(lambda x: len(np.unique(x)))
 
-        self.stdev = res
+        store(res)
+
+        if callable(write):
+            write()
 
     def plot(self, mname, xlim, xlabel='$\log_{10}(M / M_\odot)$', sparse=333):
         print('Plotting...')
@@ -180,18 +230,18 @@ class SWProcedure(Procedure):
         plt.ylim(1, 2)
         plt.xlim(xlim)
 
-    def go(self, mnames=('mvir', 'stellarMass'), write=True):
+    def go(self, write=True):
         self.load_sats()
 
         if self.observe:
             self.sats = Observer.get().observe(self.sats)
 
-        for mname in mnames:
-            xlim = PLOTDATA['bins'][mname][0], PLOTDATA['bins'][mname][-1]
-            self.bin(mname, xlim[0], BINWIDTH)
+        self.bin(PLOTDATA['bins']['stellarMass'][0], BINWIDTH, 'stellarMass', self.store_stdev, self.write_stdev)
+        self.bin(PLOTDATA['bins']['mvir'][0], BINWIDTH, 'mvir', self.store_mvir, self.write_mvir)
+        self.regress(write)
 
-            if write:
-                self.write_stdev(mname)
+        for mname in ('stellarMass', 'mvir'):
+            xlim = PLOTDATA['bins'][mname][0], PLOTDATA['bins'][mname][-1]
 
             self.plot(mname, xlim)
             fname = FILES['plot-sw-sigmas'](self.sn, mname, self.observe)
@@ -200,82 +250,50 @@ class SWProcedure(Procedure):
             plt.close()
 
     def regress(self, write=True):
-        self.restore('mvir')
+        self.load_mvir()
 
-        t = self.stdev
-        indices, fit = fit_or(models.PowerLawModel(), t['sigmax'], x=np.power(10, t['mvir']))
-
-        if write:
-            t.write(FILES['sw-reg-mvir'], format='ascii.ecsv', overwrite=True)
+        print('Regressing...')
+        indices, fit = fit_or(models.PowerLawModel(), self.mvir['sigmax'], x=np.power(10, self.mvir['mvir']))
 
         self.regression = {
             'exp': fit.params['exponent'].value,
             'err_exp': fit.params['exponent'].stderr,
             'amp': fit.params['amplitude'].value,
             'err_amp': fit.params['amplitude'].value,
-            'indices': list(indices)
+            'indices': indices.tolist()
         }
 
         if write:
             self.write_regression()
 
-    def predict(self):
-        params = Regressor.get()[self.sn]
-        sn, amp, err_amp, exp, err_exp = params
-
-        data = Table.read(FILES['sw-sigmas'](self.sn, 'stellarMass', self.observe))
-
-        data['mvir'] = np.log10(data['sigmax'] / amp) / exp
-        # data['mvir'] = np.log10(np.power((data['sigmax'] / amp), 1 / exp))
-
-        data['relerr_mvir'] = np.sqrt(
-            ((1 / exp) * (err_amp / amp)) ** 2 + (
-            np.log(data['mvir']) * (err_exp / exp)) ** 2
-        )
-
-        self.predictions = {
-            'mean': Data(mvir=data['mvir'], mstar=data['stellarMass'],
-                         err_mvir=data['relerr_mvir'] / np.log(10),
-                         N=data['N'])
-        }
-
 
 class HWProcedure(Procedure):
-    def __init__(self, sn, observe):
-        Procedure.__init__(self, sn, observe)
-        self.sats = None
+    def __init__(self, sn, observe, stdev_file=None):
+        Procedure.__init__(self, sn, observe,
+                           reg_file=FILES['hw-reg'],
+                           stdev_file=stdev_file)
+
         self.rms = None
-        self.predicted = None
+        self.rms_file = FILES['hw-rms'](self.sn, self.observe)
 
-        self.reg_file = FILES['hw-reg-mvir'](sn)
+    def bin(self, left, width, write=True):
+        raise NotImplementedError
+    def predict(self):
+        raise NotImplementedError
 
-    def restore(self):
-        try:
-            if self.stdev is None:
-                self.stdev = Table.read(FILES['hw-sigmas'](self.sn, self.observe))
-        except:
-            pass
-
-    def load_sats(self):
-        if self.sats is None:
-            fname = FILES['sats'](self.sn)
-            print('Loading table', fname)
-            t = Table.read(fname)
-            t = t[np.where(t['stellarMass'] > 1e-4)]
-            t['mvir'] = 10 + np.log10(t['mvir'])
-            t['stellarMass'] = 10 + np.log10(t['stellarMass'])
-            self.sats = t
     def load_rms(self):
         if self.rms is None:
-            fname = FILES['hw-rms'](self.sn, self.observe)
-            print('Loading table', fname)
-            self.rms = Table.read(fname)
+            print('Loading table', self.rms_file)
+            self.rms = Table.read(self.rms_file)
+    def write_rms(self):
+        print('Writing to', self.rms_file)
+        self.rms.write(self.rms_file, overwrite=True)
 
     def get_subset(self):
         self.load_rms()
         return self.rms
 
-    def calculate(self):
+    def calculate(self, write=True):
         self.load_sats()
 
         print('Grouping by fofCentralId...')
@@ -297,28 +315,8 @@ class HWProcedure(Procedure):
         rms = join(rms, nums, keys='fofCentralId')
         self.rms = rms
 
-    def bin(self, left, width):
-        self.load_rms()
-
-        print('Binning in stellarMass')
-        t = deal(self.rms)
-        t['bin'] = np.floor_divide(t['ms'] - left, width)
-        binned = t.group_by('bin')
-
-        cols = ['rms', 'rmsx', 'rmsy', 'rmsz']
-        for col in cols:
-            binned[col] = binned[col]**2
-
-        print('Calculating mean variance...')
-        res = binned[['bin'] + cols].groups.aggregate(np.mean)
-        res['stellarMass'] = left + (res['bin'] + 0.5) * width
-        res['N'] = binned.groups.indices[1:] - binned.groups.indices[:-1]
-
-        for col in cols:
-            res[col] = np.sqrt(res[col])
-            res.rename_column(col, col.replace('rms', 'sigma'))
-
-        self.stdev = res
+        if write:
+            self.write_rms()
 
     def regress(self, write=True):
         self.load_rms()
@@ -343,21 +341,73 @@ class HWProcedure(Procedure):
         if self.observe:
             self.sats = Observer.get().observe(self.sats)
 
-        self.calculate()
-
-        if write:
-            fname = FILES['hw-rms'](self.sn, self.observe)
-            print('Writing to', fname)
-            self.rms.write(fname, overwrite=True)
-
-        self.bin(PLOTDATA['bins']['stellarMass'][0], BINWIDTH)
-
-        if write:
-            fname = FILES['hwp-sigmas'](self.sn, self.observe)
-            print('Writing to', fname)
-            self.stdev.write(fname, overwrite=True)
-
+        self.calculate(write)
+        try:
+            self.bin(PLOTDATA['bins']['stellarMass'][0], BINWIDTH, write)
+        except NotImplementedError:
+            pass
         self.regress(write)
+
+class HWPProcedure(SigmaPredictProcedure, HWProcedure):
+    def __init__(self, sn, observe):
+        HWProcedure.__init__(self, sn, observe,
+                             stdev_file=FILES['hwp-sigmas'](sn, self.observe))
+
+    def bin(self, left, width, write=True):
+        self.load_rms()
+
+        print('Binning in stellarMass')
+        t = deal(self.rms)
+        t['bin'] = np.floor_divide(t['ms'] - left, width)
+        binned = t.group_by('bin')
+
+        cols = ['rms', 'rmsx', 'rmsy', 'rmsz']
+        for col in cols:
+            binned[col] = binned[col]**2
+
+        print('Calculating mean variance...')
+        res = binned[['bin'] + cols].groups.aggregate(np.mean)
+        res['stellarMass'] = left + (res['bin'] + 0.5) * width
+        res['N'] = binned.groups.indices[1:] - binned.groups.indices[:-1]
+
+        for col in cols:
+            res[col] = np.sqrt(res[col])
+            res.rename_column(col, col.replace('rms', 'sigma'))
+
+        self.stdev = res
+
+        if write:
+            self.write_stdev()
+
+class HWMProcedure(SigmaPredictProcedure, HWProcedure):
+    def __init__(self, sn, observe):
+        HWProcedure.__init__(self, sn, observe,
+                             stdev_file=FILES['hwm-sigmas'](sn, self.observe))
+
+    def bin(self, left, width, write=True):
+        self.load_rms()
+
+        print('Binning in stellarMass')
+        t = deal(self.rms)
+        t['bin'] = np.floor_divide(t['ms'] - left, width)
+        binned = t.group_by('bin')
+
+        cols = ['rms', 'rmsx', 'rmsy', 'rmsz']
+        res = binned[['bin'] + cols].groups.aggregate(np.mean)
+        res['stellarMass'] = left + (res['bin'] + 0.5) * width
+        res['N'] = binned.groups.indices[1:] - binned.groups.indices[:-1]
+
+        for col in cols:
+            res.rename_column(col, col.replace('rms', 'sigma'))
+
+        self.stdev = res
+
+        if write:
+            self.write_stdev()
+
+class HWNProcedure(HWProcedure):
+    def bin(self, left, width, write=True):
+        raise NotImplementedError
 
     def predict(self):
         p = self.get_regression()
@@ -372,7 +422,6 @@ class HWProcedure(Procedure):
                      'mean': np.mean, 'median': np.median, 'std': np.std,
                      'p16': percentile_wrapper(16),
                      'p84': percentile_wrapper(84)})
-        self.predicted = b
 
         self.predictions = {
             'median': Data(mstar=b[0]['mean'], mvir=b[1]['median'],
