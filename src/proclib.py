@@ -146,9 +146,9 @@ class SigmaPredictProcedure(Procedure):
 
 class SWProcedure(SigmaPredictProcedure):
     def __init__(self, sn, observe):
-        super(SWProcedure, self).__init__(sn, observe,
-                                          reg_file=FILES['sw-reg'],
-                                          stdev_file=FILES['sw-sigmas'](sn, 'stellarMass', observe))
+        Procedure.__init__(self, sn, observe,
+                           reg_file=FILES['sw-reg'],
+                           stdev_file=FILES['sw-sigmas'](sn, 'stellarMass', observe))
 
         self.mvir = None
         self.mvir_file = FILES['sw-sigmas'](sn, 'mvir', observe)
@@ -269,9 +269,9 @@ class SWProcedure(SigmaPredictProcedure):
 
 class HWProcedure(Procedure):
     def __init__(self, sn, observe, stdev_file=None):
-        super(HWProcedure, self).__init__(sn, observe,
-                                          reg_file=FILES['hw-reg'],
-                                          stdev_file=stdev_file)
+        Procedure.__init__(self, sn, observe,
+                           reg_file=FILES['hw-reg'],
+                           stdev_file=stdev_file)
 
         self.rms = None
         self.rms_file = FILES['hw-rms'](sn, observe)
@@ -348,10 +348,10 @@ class HWProcedure(Procedure):
             pass
         self.regress(write)
 
-class HWPProcedure(SigmaPredictProcedure, HWProcedure):
+class HWPProcedure(HWProcedure, SigmaPredictProcedure):
     def __init__(self, sn, observe):
-        super(HWPProcedure, self).__init__(sn, observe,
-                                           stdev_file=FILES['hwp-sigmas'](sn, observe))
+        HWProcedure.__init__(self, sn, observe,
+                             stdev_file=FILES['hwp-sigmas'](sn, observe))
 
     def bin(self, left, width, write=True):
         self.load_rms()
@@ -379,10 +379,10 @@ class HWPProcedure(SigmaPredictProcedure, HWProcedure):
         if write:
             self.write_stdev()
 
-class HWMProcedure(SigmaPredictProcedure, HWProcedure):
+class HWMProcedure(HWProcedure, SigmaPredictProcedure):
     def __init__(self, sn, observe):
-        super(HWMProcedure, self).__init__(sn, observe,
-                                           stdev_file=FILES['hwm-sigmas'](sn, observe))
+        HWProcedure.__init__(self, sn, observe,
+                             stdev_file=FILES['hwm-sigmas'](sn, observe))
 
     def bin(self, left, width, write=True):
         self.load_rms()
