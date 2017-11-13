@@ -314,6 +314,10 @@ class HWProcedure(Procedure):
         res['stellarMass'] = left + (res['bin'] + 0.5) * width
         res['N'] = binned.groups.indices[1:] - binned.groups.indices[:-1]
 
+        for col in cols:
+            res[col] = np.sqrt(res[col])
+            res.rename_column(col, col.replace('rms', 'sigma'))
+
         self.stdev = res
 
     def regress(self, write=True):
