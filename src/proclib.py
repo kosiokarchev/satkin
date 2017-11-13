@@ -230,6 +230,23 @@ class SWProcedure(SigmaPredictProcedure):
         plt.ylim(1, 2)
         plt.xlim(xlim)
 
+    def regress(self, write=True):
+        self.load_mvir()
+
+        print('Regressing...')
+        indices, fit = fit_or(models.PowerLawModel(), self.mvir['sigmax'], x=np.power(10, self.mvir['mvir']))
+
+        self.regression = {
+            'exp': fit.params['exponent'].value,
+            'err_exp': fit.params['exponent'].stderr,
+            'amp': fit.params['amplitude'].value,
+            'err_amp': fit.params['amplitude'].value,
+            'indices': indices.tolist()
+        }
+
+        if write:
+            self.write_regression()
+
     def go(self, write=True):
         self.load_sats()
 
@@ -248,23 +265,6 @@ class SWProcedure(SigmaPredictProcedure):
             plt.savefig(fname)
             print('Figure saved:', fname)
             plt.close()
-
-    def regress(self, write=True):
-        self.load_mvir()
-
-        print('Regressing...')
-        indices, fit = fit_or(models.PowerLawModel(), self.mvir['sigmax'], x=np.power(10, self.mvir['mvir']))
-
-        self.regression = {
-            'exp': fit.params['exponent'].value,
-            'err_exp': fit.params['exponent'].stderr,
-            'amp': fit.params['amplitude'].value,
-            'err_amp': fit.params['amplitude'].value,
-            'indices': indices.tolist()
-        }
-
-        if write:
-            self.write_regression()
 
 
 class HWProcedure(Procedure):
@@ -348,10 +348,10 @@ class HWProcedure(Procedure):
             pass
         self.regress(write)
 
-class HWPProcedure(HWProcedure, SigmaPredictProcedure):
-    def __init__(self, sn, observe):
-        HWProcedure.__init__(self, sn, observe,
-                             stdev_file=FILES['hwp-sigmas'](sn, observe))
+class HWSigmaProcedure(HWProcedure, SigmaPredictProcedure):
+    @staticmethod
+    def collapse(binned, cols):
+        raise NotImplementedError
 
     def bin(self, left, width, write=True):
         self.load_rms()
@@ -362,48 +362,52 @@ class HWPProcedure(HWProcedure, SigmaPredictProcedure):
         binned = t.group_by('bin')
 
         cols = ['rms', 'rmsx', 'rmsy', 'rmsz']
+        self.stdev = self.collapse(binned, cols)
+        for col in cols:
+            self.stdev.rename_column(col, col.replace('rms', 'sigma'))
+        self.stdev['stellarMass'] = left + (self.stdev['bin'] + 0.5) * width
+        self.stdev['N'] = binned.groups.indices[1:] - binned.groups.indices[:-1]
+
+        if write:
+            self.write_stdev()
+
+    def predict(self):
+        SigmaPredictProcedure.predict(self)
+
+class HWPProcedure(HWSigmaProcedure):
+    def __init__(self, sn, observe):
+        HWSigmaProcedure.__init__(self, sn, observe,
+                                  stdev_file=FILES['hwp-sigmas'](sn, observe))
+
+    @staticmethod
+    def collapse(binned, cols):
         for col in cols:
             binned[col] = binned[col]**2
 
-        print('Calculating mean variance...')
         res = binned[['bin'] + cols].groups.aggregate(np.mean)
-        res['stellarMass'] = left + (res['bin'] + 0.5) * width
-        res['N'] = binned.groups.indices[1:] - binned.groups.indices[:-1]
 
         for col in cols:
             res[col] = np.sqrt(res[col])
-            res.rename_column(col, col.replace('rms', 'sigma'))
 
-        self.stdev = res
+        return res
 
-        if write:
-            self.write_stdev()
-
-class HWMProcedure(HWProcedure, SigmaPredictProcedure):
+class HWAProcedure(HWSigmaProcedure):
     def __init__(self, sn, observe):
-        HWProcedure.__init__(self, sn, observe,
-                             stdev_file=FILES['hwm-sigmas'](sn, observe))
+        HWSigmaProcedure.__init__(self, sn, observe,
+                                  stdev_file=FILES['hwa-sigmas'](sn, observe))
 
-    def bin(self, left, width, write=True):
-        self.load_rms()
+    @staticmethod
+    def collapse(binned, cols):
+        return binned[['bin'] + cols].groups.aggregate(np.mean)
 
-        print('Binning in stellarMass')
-        t = deal(self.rms)
-        t['bin'] = np.floor_divide(t['ms'] - left, width)
-        binned = t.group_by('bin')
+class HWMProcedure(HWSigmaProcedure):
+    def __init__(self, sn, observe):
+        HWSigmaProcedure.__init__(self, sn, observe,
+                                  stdev_file=FILES['hwm-sigmas'](sn, observe))
 
-        cols = ['rms', 'rmsx', 'rmsy', 'rmsz']
-        res = binned[['bin'] + cols].groups.aggregate(np.mean)
-        res['stellarMass'] = left + (res['bin'] + 0.5) * width
-        res['N'] = binned.groups.indices[1:] - binned.groups.indices[:-1]
-
-        for col in cols:
-            res.rename_column(col, col.replace('rms', 'sigma'))
-
-        self.stdev = res
-
-        if write:
-            self.write_stdev()
+    @staticmethod
+    def collapse(binned, cols):
+        return binned[['bin'] + cols].groups.aggregate(np.median)
 
 class HWNProcedure(HWProcedure):
     def bin(self, left, width, write=True):
