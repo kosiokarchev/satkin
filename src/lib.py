@@ -124,6 +124,11 @@ def satkin_sim(sn):
     swp = SWProcedure(sn, False)
     swp.sats = sats
     swp.go()
+    del swp
+
+    hwp = HWProcedure(sn, False)
+    hwp.sats = sats
+    hwp.go()
 
 
 class Procedure:
