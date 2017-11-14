@@ -187,7 +187,7 @@ class Procedure:
         try:
             with open(self.reg_file) as f:
                 reg = json.load(f)
-        except FileNotFoundError:
+        except IOError:
             reg = dict()
         reg[str(self.sn)] = self.regression
         with open(self.reg_file, 'w') as f:
