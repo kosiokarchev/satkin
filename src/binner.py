@@ -1,4 +1,4 @@
-from lib import *
+from funcs import *
 
 
 def binX(t, x, y, nbins=20, bins=None, funcsx=None, funcsy=None):
@@ -56,13 +56,15 @@ class bin2d:
         self.x = x
         self.y = y
 
-    def load(self, fname):
+    @classmethod
+    def load(cls, fname):
         with open(fname) as f:
             bins = json.load(f)
-        self.binx, self.biny = [
+        bins = [
             [{key: np.array(b[i][key]) for key in b[i]} for i in (0, 1)]
             for b in bins
         ]
+        return cls(binx=bins[0], biny=bins[1])
     def save(self, fname):
         bins = [
             [{key: b[i][key].tolist() for key in b[i]} for i in (0, 1)]

@@ -1,4 +1,4 @@
-from lib import *
+from funcs import *
 
 
 class Data:
@@ -10,10 +10,10 @@ class Data:
                  label=None):
         self.mvir = np.array(mvir)
         self.mstar = np.array(mstar)
-        self.err_mvir = np.array(err_mvir) if mvir is not None else None
-        self.err_mstar = np.array(err_mstar) if mvir is not None else None
-        self.mvir_p16 = np.array(p16) if mvir is not None else None
-        self.mvir_p84 = np.array(p84) if mvir is not None else None
+        self.err_mvir = np.array(err_mvir) if err_mvir is not None else None
+        self.err_mstar = np.array(err_mstar) if err_mstar is not None else None
+        self.mvir_p16 = np.array(p16) if p16 is not None else None
+        self.mvir_p84 = np.array(p84) if p84 is not None else None
         self.N = N
         self.label = label
 
@@ -24,6 +24,6 @@ class Data:
             return self.err_mvir
 
     def plot(self, **kwargs):
-        kw = dict(errorevery=7, marker='.', markersize=5, elinewidth=2, capsize=2)
+        kw = dict(errorevery=7, elinewidth=1, capsize=2, linewidth=2)
         kw.update(kwargs)
         plt.errorbar(self.mvir, self.mstar, xerr=self.get_ebars(), **kw)
