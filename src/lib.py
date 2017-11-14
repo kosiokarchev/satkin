@@ -44,6 +44,12 @@ FILES = {
 def get_sparse(length, sparse=333):
     return np.random.randint(0, length, int(length / sparse))
 
+def load_table(fname, **kwargs):
+    print('Loading', fname)
+    return Table.read(fname, **kwargs)
+def write_table(t, fname, **kwargs):
+    print('Writing to', fname)
+    t.write(fname, overwrite=True, **kwargs)
 
 def deal(t):
     t = t[np.where(t['stellarMass'] > 1e-4)]

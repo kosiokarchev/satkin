@@ -8,12 +8,12 @@ class Data:
                  p16=None, p84=None,
                  N=None,
                  label=None):
-        self.mvir = mvir
-        self.mstar = mstar
-        self.err_mvir = err_mvir
-        self.err_mstar = err_mstar
-        self.mvir_p16 = p16
-        self.mvir_p84 = p84
+        self.mvir = np.array(mvir)
+        self.mstar = np.array(mstar)
+        self.err_mvir = np.array(err_mvir) if mvir is not None else None
+        self.err_mstar = np.array(err_mstar) if mvir is not None else None
+        self.mvir_p16 = np.array(p16) if mvir is not None else None
+        self.mvir_p84 = np.array(p84) if mvir is not None else None
         self.N = N
         self.label = label
 

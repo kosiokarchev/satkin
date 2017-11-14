@@ -65,6 +65,64 @@ def joinsats(sn, clean=False, outname='data/satsnum{}.fits', **kwargs):
     sats.write(outname.format(sn), **kwargs)
 
 
+def satkin_combine(sn):
+    centrals = load_table(FILES['cube'](sn, sats=False))
+    sats = load_table(FILES['cube'](sn, sats=True))
+
+    print('Joining ...')
+    centrals.rename_column('galaxyId', 'fofCentralId')
+    sats = join(sats, centrals, 'fofCentralId',
+                table_names=['s', 'c'])  # column names like name_s/name_c
+
+    print('Calculating velocities and distances ' + str(sn) + ' ...')
+    sats['vpecx'] = sats['velX_s'] - sats['velX_c']
+    sats['vpecy'] = sats['velY_s'] - sats['velY_c']
+    sats['vpecz'] = sats['velZ_s'] - sats['velZ_c']
+    sats['vpec'] = np.sqrt(sats['vpecx'] ** 2
+                           + sats['vpecy'] ** 2
+                           + sats['vpecz'] ** 2)  # magn of peculiar velocity
+
+    sats = sats['fofCentralId', 'galaxyId',
+                'mvir', 'stellarMass',
+                'vpecx', 'vpecy', 'vpecz', 'vpec',
+                'distanceToCentralGalX', 'distanceToCentralGalY', 'distanceToCentralGalZ']
+    sats.rename_column('distanceToCentralGalX', 'rx')
+    sats.rename_column('distanceToCentralGalY', 'ry')
+    sats.rename_column('distanceToCentralGalZ', 'rz')
+    sats['r'] = np.sqrt(sats['rx'] ** 2
+                        + sats['ry'] ** 2
+                        + sats['rz'] ** 2)
+
+    write_table(sats, FILES['sats'](sn))
+
+    return centrals, sats
+
+def satkin_get_nums(centrals, sats):
+    g = sats.group_by('fofCentralId').groups
+    nums = Table(names=('fofCentralId', 'num_sat'),
+                 data=(g.keys['fofCentralId'].data, g.indices[1:] - g.indices[:-1]))
+
+    nums = join(nums, centrals, 'fofCentralId')['fofCentralId', 'stellarMass', 'mvir', 'num_sat']
+
+    write_table(nums, FILES['nums'](sn))
+
+    sats = join(sats, nums['fofCentralId', 'num_sat'], 'fofCentralId')
+
+    write_table(sats, FILES['sats'](sn))
+
+    return nums, sats
+
+def satkin_sim(sn):
+    centrals, sats = satkin_combine(sn)
+    nums, sats = satkin_get_nums(centrals, sats)
+
+    del centrals, nums
+
+    swp = SWProcedure(sn, False)
+    swp.sats = sats
+    swp.go()
+
+
 class Procedure:
     def __init__(self, sn, observe, stdev_file, reg_file):
         self.sn = sn
@@ -104,8 +162,21 @@ class Procedure:
         raise NotImplementedError
     def go(self):
         raise NotImplementedError
+
     def predict(self):
-        raise NotImplementedError
+        p = self.get_regression()
+        self.load_stdev()
+
+        mvir = np.log10(self.stdev['sigmax'] / p['amp']) / p['exp']
+
+        relerr_mvir = np.sqrt(
+            ((1 / p['exp']) * (p['err_amp'] / p['amp'])) ** 2
+            + (np.log(mvir) * (p['err_exp'] / p['exp'])) ** 2
+        )
+
+        self.predictions = Data(mvir=mvir, mstar=self.stdev['stellarMass'],
+                                err_mvir=relerr_mvir / np.log(10),
+                                N=self.stdev['N'])
 
     def get_predictions(self):
         if self.predictions is None:
@@ -127,24 +198,8 @@ class Procedure:
                 self.regression = json.load(f)[str(self.sn)]
         return self.regression
 
-class SigmaPredictProcedure(Procedure):
-    def predict(self):
-        p = self.get_regression()
-        self.load_stdev()
 
-        mvir = np.log10(self.stdev['sigmax'] / p['amp']) / p['exp']
-
-        relerr_mvir = np.sqrt(
-            ((1 / p['exp']) * (p['err_amp'] / p['amp'])) ** 2
-            + (np.log(mvir) * (p['err_exp'] / p['exp'])) ** 2
-        )
-
-        self.predictions = Data(mvir=mvir, mstar=self.stdev['stellarMass'],
-                                err_mvir=relerr_mvir / np.log(10),
-                                N=self.stdev['N'])
-
-
-class SWProcedure(SigmaPredictProcedure):
+class SWProcedure(Procedure):
     def __init__(self, sn, observe):
         Procedure.__init__(self, sn, observe,
                            reg_file=FILES['sw-reg'],
@@ -240,14 +295,14 @@ class SWProcedure(SigmaPredictProcedure):
             'exp': fit.params['exponent'].value,
             'err_exp': fit.params['exponent'].stderr,
             'amp': fit.params['amplitude'].value,
-            'err_amp': fit.params['amplitude'].value,
+            'err_amp': fit.params['amplitude'].stderr,
             'indices': indices.tolist()
         }
 
         if write:
             self.write_regression()
 
-    def go(self, write=True):
+    def go(self, write=True, plot=False):
         self.load_sats()
 
         if self.observe:
@@ -255,16 +310,19 @@ class SWProcedure(SigmaPredictProcedure):
 
         self.bin(PLOTDATA['bins']['stellarMass'][0], BINWIDTH, 'stellarMass', self.store_stdev, self.write_stdev)
         self.bin(PLOTDATA['bins']['mvir'][0], BINWIDTH, 'mvir', self.store_mvir, self.write_mvir)
-        self.regress(write)
 
-        for mname in ('stellarMass', 'mvir'):
-            xlim = PLOTDATA['bins'][mname][0], PLOTDATA['bins'][mname][-1]
+        if self.observe:
+            self.regress(write)
 
-            self.plot(mname, xlim)
-            fname = FILES['plot-sw-sigmas'](self.sn, mname, self.observe)
-            plt.savefig(fname)
-            print('Figure saved:', fname)
-            plt.close()
+        if plot:
+            for mname in ('stellarMass', 'mvir'):
+                xlim = PLOTDATA['bins'][mname][0], PLOTDATA['bins'][mname][-1]
+
+                self.plot(mname, xlim)
+                fname = FILES['plot-sw-sigmas'](self.sn, mname, self.observe)
+                plt.savefig(fname)
+                print('Figure saved:', fname)
+                plt.close()
 
 
 class HWProcedure(Procedure):
@@ -277,8 +335,6 @@ class HWProcedure(Procedure):
         self.rms_file = FILES['hw-rms'](sn, observe)
 
     def bin(self, left, width, write=True):
-        raise NotImplementedError
-    def predict(self):
         raise NotImplementedError
 
     def load_rms(self):
@@ -329,7 +385,7 @@ class HWProcedure(Procedure):
             'exp': fit.params['exponent'].value,
             'err_exp': fit.params['exponent'].stderr,
             'amp': fit.params['amplitude'].value,
-            'err_amp': fit.params['amplitude'].value
+            'err_amp': fit.params['amplitude'].stderr
         }
 
         if write:
@@ -346,9 +402,11 @@ class HWProcedure(Procedure):
             self.bin(PLOTDATA['bins']['stellarMass'][0], BINWIDTH, write)
         except NotImplementedError:
             pass
-        self.regress(write)
 
-class HWSigmaProcedure(HWProcedure, SigmaPredictProcedure):
+        if not self.observe:
+            self.regress(write)
+
+class HWSigmaProcedure(HWProcedure):
     @staticmethod
     def collapse(binned, cols):
         raise NotImplementedError
@@ -370,9 +428,6 @@ class HWSigmaProcedure(HWProcedure, SigmaPredictProcedure):
 
         if write:
             self.write_stdev()
-
-    def predict(self):
-        SigmaPredictProcedure.predict(self)
 
 class HWPProcedure(HWSigmaProcedure):
     def __init__(self, sn, observe):

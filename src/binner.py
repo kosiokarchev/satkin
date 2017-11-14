@@ -1,5 +1,4 @@
 from lib import *
-import pickle
 
 
 def binX(t, x, y, nbins=20, bins=None, funcsx=None, funcsy=None):
