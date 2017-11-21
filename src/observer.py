@@ -1,5 +1,6 @@
 from funcs import *
-
+import numpy.random as random
+# from astropy.table import Table
 
 # class Regressor():
 #     _regressor = None
@@ -41,6 +42,9 @@ from funcs import *
 #     def __getitem__(self, item):
 #         return self.t[self.sns.index(item)]
 
+def p(x):
+    y = 0.5*(1+erf(-(x-26)/2))
+    return y
 
 class Observer:
     _observer = None
@@ -58,5 +62,8 @@ class Observer:
         print('Observer prepared.')
 
     def observe(self, t):
-        t = join(self.mags, t, 'galaxyId')
-        return t[np.where(t['ACS775'] < 27)]
+        self.mags['rand'] = random.random(len(self.mags))
+        self.mags['func'] = p(self.mags['ACS775'])
+        sample = self.mags[np.where(self.mags['func'] > self.mags['rand'])]
+        t = join(sample, t, 'galaxyId')
+        return t
