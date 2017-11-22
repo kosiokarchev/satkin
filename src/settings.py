@@ -30,5 +30,7 @@ FILES = {
     'hw-rms': lambda sn, observe=False: 'data/{}hw-rms{}.fits'.format('observe/' if observe else '', sn),
     'hwp-sigmas': lambda sn, observe=False: 'data/{}hwp-sigmas{}.csv'.format('observe/' if observe else '', sn),
     'hwa-sigmas': lambda sn, observe=False: 'data/{}hwa-sigmas{}.csv'.format('observe/' if observe else '', sn),
-    'hwm-sigmas': lambda sn, observe=False: 'data/{}hwm-sigmas{}.csv'.format('observe/' if observe else '', sn)
+    'hwm-sigmas': lambda sn, observe=False: 'data/{}hwm-sigmas{}.csv'.format('observe/' if observe else '', sn),
+
+    'data': lambda sn, t, observe=False: 'data/data-{}{}{}.json'.format(t, '-obs' if observe else '', sn)
 }

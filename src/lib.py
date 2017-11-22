@@ -499,10 +499,9 @@ class HWNProcedure(HWProcedure):
                      'p84': percentile_wrapper(84)})
 
         self.predictions = {
-            'median': Data(mstar=b[0]['mean'], mvir=b[1]['median'],
-                           p16=b[1]['p16'], p84=b[1]['p84'],
+            'median': Data(mvir=b[1]['median'], mstar=b[0]['mean'],
+                           mvir_p16=b[1]['p16'], mvir_p84=b[1]['p84'],
                            N=b[0]['N']),
-            'mean': Data(mstar=b[0]['mean'], mvir=b[1]['mean'],
-                         err_mvir=b[1]['std'],
-                         N=b[0]['N'])
+            'mean': Data(mvir=b[1]['mean'], mstar=b[0]['mean'],
+                         err_mvir=b[1]['std'], N=b[0]['N'])
         }
