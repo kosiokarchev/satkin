@@ -18,16 +18,14 @@ class Observer:
 
     def __init__(self):
         print('Preparing observer:')
-        print('Loading magnitudes...')
-        self.mags = Table.read('data/cones/cone.fits')
+        self.mags = load_table('data/cones/cone.fits')
+
+        rand = random.random(len(self.mags))
+        func = p(self.mags['ACS775'])
+        self.sample = self.mags[np.where(func > rand)]
+
         print('Observer prepared.')
 
     def observe(self, t):
         print('Observing')
-
-        self.mags['rand'] = random.random(len(self.mags))
-        self.mags['func'] = p(self.mags['ACS775'])
-        sample = self.mags[np.where(self.mags['func'] > self.mags['rand'])]
-        t = join(sample, t, 'galaxyId')
-
-        return t
+        return join(self.sample, t, 'galaxyId')

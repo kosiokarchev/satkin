@@ -134,7 +134,7 @@ def satkin_sim(sn):
 
 
 class Procedure:
-    def __init__(self, sn, observe, stdev_file, reg_file):
+    def __init__(self, sn, observe, stdev_file, reg_file, observed=False):
         self.sn = sn
         self.observe = observe
 
@@ -146,6 +146,8 @@ class Procedure:
         self.stdev_file = stdev_file
         self.reg_file = reg_file
 
+        self.observed = observed
+
 
     def load_sats(self):
         if self.sats is None:
@@ -156,7 +158,7 @@ class Procedure:
             t['mvir'] = 10 + np.log10(t['mvir'])
             t['stellarMass'] = 10 + np.log10(t['stellarMass'])
 
-            if self.observe:
+            if self.observe and not self.observed:
                 t = Observer.get().observe(t)
 
             self.sats = t
@@ -218,10 +220,11 @@ class Procedure:
 
 
 class SWProcedure(Procedure):
-    def __init__(self, sn, observe):
+    def __init__(self, sn, observe, **kwargs):
         Procedure.__init__(self, sn, observe,
                            reg_file=FILES['sw-reg'],
-                           stdev_file=FILES['sw-sigmas'](sn, 'stellarMass', observe))
+                           stdev_file=FILES['sw-sigmas'](sn, 'stellarMass', observe),
+                           **kwargs)
 
         self.mvir = None
         self.mvir_file = FILES['sw-sigmas'](sn, 'mvir', observe)
@@ -341,10 +344,11 @@ class SWProcedure(Procedure):
 
 
 class HWProcedure(Procedure):
-    def __init__(self, sn, observe, stdev_file=None):
+    def __init__(self, sn, observe, stdev_file=None, **kwargs):
         Procedure.__init__(self, sn, observe,
                            reg_file=FILES['hw-reg'],
-                           stdev_file=stdev_file)
+                           stdev_file=stdev_file,
+                           **kwargs)
 
         self.rms = None
         self.rms_file = FILES['hw-rms'](sn, observe)
@@ -446,9 +450,10 @@ class HWSigmaProcedure(HWProcedure):
             self.write_stdev()
 
 class HWPProcedure(HWSigmaProcedure):
-    def __init__(self, sn, observe):
+    def __init__(self, sn, observe, **kwargs):
         HWSigmaProcedure.__init__(self, sn, observe,
-                                  stdev_file=FILES['hwp-sigmas'](sn, observe))
+                                  stdev_file=FILES['hwp-sigmas'](sn, observe),
+                                  **kwargs)
 
     @staticmethod
     def collapse(binned, cols):
@@ -463,18 +468,20 @@ class HWPProcedure(HWSigmaProcedure):
         return res
 
 class HWAProcedure(HWSigmaProcedure):
-    def __init__(self, sn, observe):
+    def __init__(self, sn, observe, **kwargs):
         HWSigmaProcedure.__init__(self, sn, observe,
-                                  stdev_file=FILES['hwa-sigmas'](sn, observe))
+                                  stdev_file=FILES['hwa-sigmas'](sn, observe),
+                                  **kwargs)
 
     @staticmethod
     def collapse(binned, cols):
         return binned[['bin'] + cols].groups.aggregate(np.mean)
 
 class HWMProcedure(HWSigmaProcedure):
-    def __init__(self, sn, observe):
+    def __init__(self, sn, observe, **kwargs):
         HWSigmaProcedure.__init__(self, sn, observe,
-                                  stdev_file=FILES['hwm-sigmas'](sn, observe))
+                                  stdev_file=FILES['hwm-sigmas'](sn, observe),
+                                  **kwargs)
 
     @staticmethod
     def collapse(binned, cols):
