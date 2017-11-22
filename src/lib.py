@@ -134,7 +134,10 @@ def satkin_sim(sn):
 
 
 class Procedure:
-    def __init__(self, sn, observe, stdev_file, reg_file, observed=False):
+    stdev_file = None
+    reg_file = None
+
+    def __init__(self, sn, observe, observed=False):
         self.sn = sn
         self.observe = observe
 
@@ -143,17 +146,15 @@ class Procedure:
         self.regression = None
         self.predictions = None
 
-        self.stdev_file = stdev_file
-        self.reg_file = reg_file
+        if self.stdev_file is not None:
+            self.stdev_file = self.stdev_file(sn, observe)
 
         self.observed = observed
 
 
     def load_sats(self):
         if self.sats is None:
-            fname = FILES['sats'](self.sn)
-            print('Loading table', fname)
-            t = Table.read(fname)
+            t = load_table(FILES['sats'](self.sn))
             t = t[np.where(t['stellarMass'] > 1e-4)]
             t['mvir'] = 10 + np.log10(t['mvir'])
             t['stellarMass'] = 10 + np.log10(t['stellarMass'])
@@ -166,8 +167,7 @@ class Procedure:
     def load_stdev(self):
         if self.stdev is None:
             try:
-                print('Loading table', self.stdev_file)
-                self.stdev = Table.read(self.stdev_file)
+                self.stdev = load_table(self.stdev_file)
             except IOError:
                 print('Table does not exist! Calculating it.')
                 self.go(True)
@@ -220,26 +220,23 @@ class Procedure:
 
 
 class SWProcedure(Procedure):
+    reg_file = FILES['sw-reg']
+    stdev_file = lambda sn, observe: FILES['sw-sigmas'](sn, 'stellarMass', observe)
+
     def __init__(self, sn, observe, **kwargs):
-        Procedure.__init__(self, sn, observe,
-                           reg_file=FILES['sw-reg'],
-                           stdev_file=FILES['sw-sigmas'](sn, 'stellarMass', observe),
-                           **kwargs)
+        Procedure.__init__(self, sn, observe, **kwargs)
 
         self.mvir = None
         self.mvir_file = FILES['sw-sigmas'](sn, 'mvir', observe)
 
     def load_mvir(self):
         if self.mvir is None:
-            print('Loading table', self.mvir_file)
-            self.mvir = Table.read(self.mvir_file)
+            self.mvir = load_table(self.mvir_file)
     def write_mvir(self):
-        fname = FILES['sw-sigmas'](self.sn, 'mvir', self.observe)
-        print('Writing to', fname)
-        self.mvir.write(fname, overwrite=True)
+        write_table(self.mvir, self.mvir_file)
 
     def get_subset(self):
-        t = Table.read(FILES['nums'](self.sn))
+        t = load_table(FILES['nums'](self.sn))
         return t[np.where(t['num_sat'] > 2)]
 
     def store_stdev(self, stdev):
@@ -344,11 +341,10 @@ class SWProcedure(Procedure):
 
 
 class HWProcedure(Procedure):
-    def __init__(self, sn, observe, stdev_file=None, **kwargs):
-        Procedure.__init__(self, sn, observe,
-                           reg_file=FILES['hw-reg'],
-                           stdev_file=stdev_file,
-                           **kwargs)
+    reg_file = FILES['hw-reg']
+
+    def __init__(self, sn, observe, **kwargs):
+        Procedure.__init__(self, sn, observe, **kwargs)
 
         self.rms = None
         self.rms_file = FILES['hw-rms'](sn, observe)
@@ -359,14 +355,12 @@ class HWProcedure(Procedure):
     def load_rms(self):
         if self.rms is None:
             try:
-                print('Loading table', self.rms_file)
-                self.rms = Table.read(self.rms_file)
+                self.rms = load_table(self.rms_file)
             except IOError:
                 print('The table does not exist! Calculating it...')
                 self.calculate(True)
     def write_rms(self):
-        print('Writing to', self.rms_file)
-        self.rms.write(self.rms_file, overwrite=True)
+        write_table(self.rms, self.rms_file)
 
     def get_subset(self):
         self.load_rms()
@@ -390,7 +384,7 @@ class HWProcedure(Procedure):
             rms.rename_column(col, col.replace('vpec', 'rms'))
 
         print('Joining with centrals data...')
-        nums = Table.read(FILES['nums'](self.sn))
+        nums = load_table(FILES['nums'](self.sn))
         rms = join(rms, nums, keys='fofCentralId')
         self.rms = rms
 
@@ -450,10 +444,7 @@ class HWSigmaProcedure(HWProcedure):
             self.write_stdev()
 
 class HWPProcedure(HWSigmaProcedure):
-    def __init__(self, sn, observe, **kwargs):
-        HWSigmaProcedure.__init__(self, sn, observe,
-                                  stdev_file=FILES['hwp-sigmas'](sn, observe),
-                                  **kwargs)
+    stdev_file = FILES['hwp-sigmas']
 
     @staticmethod
     def collapse(binned, cols):
@@ -468,27 +459,23 @@ class HWPProcedure(HWSigmaProcedure):
         return res
 
 class HWAProcedure(HWSigmaProcedure):
-    def __init__(self, sn, observe, **kwargs):
-        HWSigmaProcedure.__init__(self, sn, observe,
-                                  stdev_file=FILES['hwa-sigmas'](sn, observe),
-                                  **kwargs)
+    stdev_file = FILES['hwa-sigmas']
 
     @staticmethod
     def collapse(binned, cols):
         return binned[['bin'] + cols].groups.aggregate(np.mean)
 
 class HWMProcedure(HWSigmaProcedure):
-    def __init__(self, sn, observe, **kwargs):
-        HWSigmaProcedure.__init__(self, sn, observe,
-                                  stdev_file=FILES['hwm-sigmas'](sn, observe),
-                                  **kwargs)
+    stdev_file = FILES['hwm-sigmas']
 
     @staticmethod
     def collapse(binned, cols):
         return binned[['bin'] + cols].groups.aggregate(np.median)
 
 class HWNProcedure(HWProcedure):
-    def bin(self, left, width, write=True):
+    stdev_file = None
+
+    def bin(self, *args, **kwargs):
         raise NotImplementedError
 
     def predict(self):

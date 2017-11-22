@@ -10,7 +10,7 @@ class Data:
         self.err_mstar = np.array(err_mstar) if err_mstar is not None else None
         self.mvir_p16 = np.array(mvir_p16) if mvir_p16 is not None else None
         self.mvir_p84 = np.array(mvir_p84) if mvir_p84 is not None else None
-        self.N = N
+        self.N = np.array(N) if N is not None else None
         self.label = label
 
     def save(self, fname):
@@ -24,7 +24,12 @@ class Data:
             json.dump(d, f)
 
     @classmethod
-    def load(cls, fname):
+    def load(cls, *args):
+        if len(args)==1:
+            fname = args[0]
+        else:
+            fname = FILES['data'](*args)
+
         with open(fname) as f:
             d = json.load(f)
         return cls(**d)
@@ -32,7 +37,7 @@ class Data:
 
     def get_ebars(self):
         if self.err_mvir is None:
-            return (self.mvir-self.mvir_p16, self.mvir_p84-self.mvir)
+            return self.mvir-self.mvir_p16, self.mvir_p84-self.mvir
         else:
             return self.err_mvir
 
