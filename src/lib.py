@@ -56,7 +56,7 @@ def joinsats(sn, clean=False, outname='data/satsnum{}.fits', **kwargs):
     print('Loading sats')
     sats = Table.read('data/sats{}.fits'.format(sn))
     print('Loading nums')
-    nums = Table.read('data/nums{}.fits'.format(sn))['fofCentralId', 'num_sat']
+    nums = Table.read('data/nums{}.fits'.format(sn))
 
     if clean:
         nums = nums[np.where(nums['num_sat'] > 2)]
@@ -97,10 +97,11 @@ def satkin_combine(sn):
                         + sats['rz'] ** 2)
 
     write_table(sats, FILES['sats'](sn))
+    print(sats.columns)
 
     return centrals, sats
 
-def satkin_get_nums(centrals, sats):
+def satkin_get_nums(sn, centrals, sats):
     g = sats.group_by('fofCentralId').groups
     nums = Table(names=('fofCentralId', 'num_sat'),
                  data=(g.keys['fofCentralId'].data, g.indices[1:] - g.indices[:-1]))
@@ -112,12 +113,13 @@ def satkin_get_nums(centrals, sats):
     sats = join(sats, nums['fofCentralId', 'num_sat'], 'fofCentralId')
 
     write_table(sats, FILES['sats'](sn))
+    print(sats.columns)
 
     return nums, sats
 
 def satkin_sim(sn):
     centrals, sats = satkin_combine(sn)
-    nums, sats = satkin_get_nums(centrals, sats)
+    nums, sats = satkin_get_nums(sn, centrals, sats)
 
     del centrals, nums
 
@@ -153,12 +155,20 @@ class Procedure:
             t = t[np.where(t['stellarMass'] > 1e-4)]
             t['mvir'] = 10 + np.log10(t['mvir'])
             t['stellarMass'] = 10 + np.log10(t['stellarMass'])
+
+            if self.observe:
+                t = Observer.get().observe(t)
+
             self.sats = t
 
     def load_stdev(self):
         if self.stdev is None:
-            print('Loading table', self.stdev_file)
-            self.stdev = Table.read(self.stdev_file)
+            try:
+                print('Loading table', self.stdev_file)
+                self.stdev = Table.read(self.stdev_file)
+            except IOError:
+                print('Table does not exist! Calculating it.')
+                self.go(True)
     def write_stdev(self):
         print('Writing to', self.stdev_file)
         self.stdev.write(self.stdev_file, overwrite=True)
@@ -168,7 +178,7 @@ class Procedure:
 
     def regress(self):
         raise NotImplementedError
-    def go(self):
+    def go(self, write=True):
         raise NotImplementedError
 
     def predict(self):
@@ -313,13 +323,10 @@ class SWProcedure(Procedure):
     def go(self, write=True, plot=False):
         self.load_sats()
 
-        if self.observe:
-            self.sats = Observer.get().observe(self.sats)
-
         self.bin(PLOTDATA['bins']['stellarMass'][0], BINWIDTH, 'stellarMass', self.store_stdev, self.write_stdev)
-        self.bin(PLOTDATA['bins']['mvir'][0], BINWIDTH, 'mvir', self.store_mvir, self.write_mvir)
 
-        if self.observe:
+        if not self.observe:
+            self.bin(PLOTDATA['bins']['mvir'][0], BINWIDTH, 'mvir', self.store_mvir, self.write_mvir)
             self.regress(write)
 
         if plot:
@@ -347,8 +354,12 @@ class HWProcedure(Procedure):
 
     def load_rms(self):
         if self.rms is None:
-            print('Loading table', self.rms_file)
-            self.rms = Table.read(self.rms_file)
+            try:
+                print('Loading table', self.rms_file)
+                self.rms = Table.read(self.rms_file)
+            except IOError:
+                print('The table does not exist! Calculating it...')
+                self.calculate(True)
     def write_rms(self):
         print('Writing to', self.rms_file)
         self.rms.write(self.rms_file, overwrite=True)
@@ -401,9 +412,6 @@ class HWProcedure(Procedure):
 
     def go(self, write=True):
         self.load_sats()
-
-        if self.observe:
-            self.sats = Observer.get().observe(self.sats)
 
         self.calculate(write)
         try:
@@ -484,7 +492,7 @@ class HWNProcedure(HWProcedure):
         t['mv'] = np.log10(t['rmsx'] / p['amp']) / p['exp']
 
         b = binX(t, 'ms', 'mv', bins=PLOTDATA['bins']['stellarMass'],
-                 funcsx={'mean': np.mean},
+                 funcsx={'mean': np.mean, 'N': len},
                  funcsy={
                      'mean': np.mean, 'median': np.median, 'std': np.std,
                      'p16': percentile_wrapper(16),
@@ -492,6 +500,9 @@ class HWNProcedure(HWProcedure):
 
         self.predictions = {
             'median': Data(mstar=b[0]['mean'], mvir=b[1]['median'],
-                           p16=b[1]['p16'], p84=b[1]['p84']),
-            'mean': Data(mstar=b[0]['mean'], mvir=b[1]['mean'], err_mvir=b[1]['std'])
+                           p16=b[1]['p16'], p84=b[1]['p84'],
+                           N=b[0]['N']),
+            'mean': Data(mstar=b[0]['mean'], mvir=b[1]['mean'],
+                         err_mvir=b[1]['std'],
+                         N=b[0]['N'])
         }
