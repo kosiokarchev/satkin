@@ -69,15 +69,16 @@ from funcs import *
 
 
 def satkin_combine(sn):
+    print('Calculating satellite characteristics')
     centrals = load(FILES['cube'](sn, sats=False))
     sats = load(FILES['cube'](sn, sats=True))
 
-    print('Joining ...')
+    print('Joining')
     centrals.rename_column('galaxyId', 'fofCentralId')
     sats = join(sats, centrals, 'fofCentralId',
                 table_names=['s', 'c'])  # column names like name_s/name_c
 
-    print('Calculating velocities and distances ' + str(sn) + ' ...')
+    print('Calculating velocities and distances.')
     sats['vpecx'] = sats['velX_s'] - sats['velX_c']
     sats['vpecy'] = sats['velY_s'] - sats['velY_c']
     sats['vpecz'] = sats['velZ_s'] - sats['velZ_c']
@@ -92,6 +93,9 @@ def satkin_combine(sn):
     sats.rename_column('distanceToCentralGalX', 'rx')
     sats.rename_column('distanceToCentralGalY', 'ry')
     sats.rename_column('distanceToCentralGalZ', 'rz')
+    sats['rx'] = -sats['rx']
+    sats['ry'] = -sats['ry']
+    sats['rz'] = -sats['rz']
     sats['r'] = np.sqrt(sats['rx'] ** 2
                         + sats['ry'] ** 2
                         + sats['rz'] ** 2)
@@ -101,6 +105,7 @@ def satkin_combine(sn):
     return centrals, sats
 
 def satkin_get_nums(sn, centrals, sats):
+    print('Counting satellites')
     g = sats.group_by('fofCentralId').groups
     nums = Table(names=('fofCentralId', 'num_sat'),
                  data=(g.keys['fofCentralId'].data, g.indices[1:] - g.indices[:-1]))
@@ -109,6 +114,7 @@ def satkin_get_nums(sn, centrals, sats):
 
     write(nums, FILES['nums'](sn))
 
+    print('Joining')
     sats = join(sats, nums['fofCentralId', 'num_sat'], 'fofCentralId')
 
     write(sats, FILES['sats'](sn))
@@ -116,6 +122,7 @@ def satkin_get_nums(sn, centrals, sats):
     return nums, sats
 
 def satkin_sim(sn):
+    print('Satkin pipeline: sn={}'.format(sn))
     centrals, sats = satkin_combine(sn)
     nums, sats = satkin_get_nums(sn, centrals, sats)
 
@@ -126,6 +133,7 @@ def satkin_sim(sn):
     # swp.calculate_stdev()
     # del swp
 
+    print('HWNP')
     hwp = HWNProcedure(sn, False)
     d = hwp.get_predictions()
     d['mean'].save(FILES['data'](sn, 'hwn-mean', False))

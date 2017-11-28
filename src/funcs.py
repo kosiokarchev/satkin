@@ -13,6 +13,7 @@ from settings import *
 loaded_tables = {}
 def load(fname, **kwargs):
     if fname not in loaded_tables:
+        print('Loading', fname)
         t = Table.read(fname, **kwargs)
         loaded_tables[fname] = t
     return loaded_tables[fname]
