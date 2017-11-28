@@ -1,3 +1,4 @@
+from downloader import Query, Downloader, csv2fits
 from binner import binX, bin2d
 from observer import Observer
 from data import Data
@@ -126,8 +127,7 @@ def satkin_sim(sn):
     centrals, sats = satkin_combine(sn)
     nums, sats = satkin_get_nums(sn, centrals, sats)
 
-    del centrals, nums
-    del loaded_tables[FILES['cube'](sn)], loaded_tables[FILES['nums'](sn)]
+    del centrals, loaded_tables[FILES['cube'](sn)]
 
     # swp = SWProcedure(sn, False)
     # swp.sats = sats
@@ -288,6 +288,7 @@ class SWProcedure(Procedure):
         print('Regressing...')
         self.load_mvir()
 
+        print('Fitting to {} points'.format(len(self.mvir)))
         indices, fit = fit_or(models.PowerLawModel(), self.mvir['sigmax'], x=np.power(10, self.mvir['mvir']))
 
         self.regression = {
@@ -400,6 +401,7 @@ class HWProcedure(Procedure):
         self.load_rms()
 
         t = deal(self.rms)
+        print('Fitting to {} points'.format(len(t)))
         indices, fit = fit_or(models.PowerLawModel(), t['rmsx'], x=np.power(10, t['mv']))
 
         self.regression = {
