@@ -1,3 +1,4 @@
+from __future__ import print_function
 import os
 from time import time, sleep
 import threading
@@ -185,3 +186,16 @@ class Downloader:
         s += '\u001b[3m' + self.baseQuery + '\u001b[m' +'\n'
         s += '-'*80
         return s
+
+
+def csv2fits(fname, outname, cols):
+    from astropy.io import ascii
+    print('Loading', fname)
+    t = ascii.read(fname, format='csv', names=cols, data_start=0,
+                   fast_reader={'parallel': True})
+    print('Loaded', fname)
+    for c in t.colnames:
+        if 'Id' in c:
+            t[c] = t[c].astype(int)
+    t.write(outname, format='fits', overwrite=True)
+    print('Written', outname)
