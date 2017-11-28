@@ -32,5 +32,7 @@ FILES = {
     'hwa-sigmas': lambda sn, observe=False: 'data/{}hwa-sigmas{}.csv'.format('observe/' if observe else '', sn),
     'hwm-sigmas': lambda sn, observe=False: 'data/{}hwm-sigmas{}.csv'.format('observe/' if observe else '', sn),
 
-    'data': lambda sn, name, observe=False: 'data/data/{}{}{}.json'.format(name, '-obs' if observe else '', sn)
+    'data': lambda sn, name, observe=False: 'data/data/{}{}{}.json'.format(name, '-obs' if observe else '', sn),
+
+    'vdist': lambda sn: 'data/vdist/satstats{}.fits'.format(sn)
 }

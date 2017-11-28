@@ -10,6 +10,19 @@ from matplotlib import pyplot as plt
 from settings import *
 
 
+loaded_tables = {}
+def load(fname, **kwargs):
+    if fname not in loaded_tables:
+        t = Table.read(fname, **kwargs)
+        loaded_tables[fname] = t
+    return loaded_tables[fname]
+def write(t, fname, **kwargs):
+    print('Writing to', fname)
+    t.write(fname, overwrite=True, **kwargs)
+
+    loaded_tables[fname] = t
+
+
 def get_sparse(length, sparse=333):
     return np.random.randint(0, length, int(length / sparse))
 

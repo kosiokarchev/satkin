@@ -4,73 +4,73 @@ from data import Data
 from funcs import *
 
 
-def combine(sn):
-    print('Loading tables ' + str(sn) + ' ...')
-    centrals = Table.read('data/cube' + str(sn) + '=0.fits', format ='fits')
-    sats = Table.read('data/cube' + str(sn) + '>0.fits', format ='fits')
-
-    print('Joining ' + str(sn) + ' ...')
-    centrals.rename_column('galaxyId', 'fofCentralId')
-    sats = join(sats, centrals, 'fofCentralId', table_names=['s', 'c']) #column names like name_s/name_c
-
-    print('Calculating velocities and distances ' + str(sn) + ' ...')
-    sats['vpecx'] = sats['velX_s'] - sats['velX_c']
-    sats['vpecy'] = sats['velY_s'] - sats['velY_c']
-    sats['vpecz'] = sats['velZ_s'] - sats['velZ_c']
-    sats['vpec'] = np.sqrt(sats['vpecx']**2+sats['vpecy']**2+sats['vpecz']**2) #magn of peculiar velocity
-
-    sats = sats['fofCentralId', 'galaxyId', 'mvir', 'stellarMass', 'vpecx', 'vpecy', 'vpecz', 'vpec', 'distanceToCentralGalX', 'distanceToCentralGalY', 'distanceToCentralGalZ']
-    sats.rename_column('distanceToCentralGalX', 'rx')
-    sats.rename_column('distanceToCentralGalY', 'ry')
-    sats.rename_column('distanceToCentralGalZ', 'rz')
-    sats['r'] = np.sqrt(sats['rx']**2+sats['ry']**2+sats['rz']**2)
-
-    print('Writing tables ' + str(sn) + ' ...')
-    sats.write('data/sats' + str(sn) + '.fits', format ='fits', overwrite=True)
-
-
-def get_nums(sn):
-    print(sn)
-    print('Loading...')
-    s = Table.read('data/cube' + str(sn) + '>0.fits')
-
-    print('Grouping...')
-    g = s.group_by('fofCentralId').groups
-    s = Table(names=('fofCentralId', 'num_sat'),
-              data=(
-              g.keys['fofCentralId'].data, g.indices[1:] - g.indices[:-1]))
-
-    print('Loading...')
-    c = Table.read('data/cube' + str(sn) + '=0.fits')
-    c.rename_column('galaxyId', 'fofCentralId')
-
-    print('Joining...')
-    s = join(s, c, 'fofCentralId')['fofCentralId', 'stellarMass', 'mvir', 'num_sat']
-
-    print('Writing...')
-    s.write('data/nums' + str(sn) + '.fits', overwrite = True)
-
-
-def joinsats(sn, clean=False, outname='data/satsnum{}.fits', **kwargs):
-    print(sn)
-    print('Loading sats')
-    sats = Table.read('data/sats{}.fits'.format(sn))
-    print('Loading nums')
-    nums = Table.read('data/nums{}.fits'.format(sn))
-
-    if clean:
-        nums = nums[np.where(nums['num_sat'] > 2)]
-
-    print('Joining...')
-    sats = join(nums, sats, 'fofCentralId')
-
-    print('Writing...')
-    sats.write(outname.format(sn), **kwargs)
+# def combine(sn):
+#     print('Loading tables ' + str(sn) + ' ...')
+#     centrals = Table.read('data/cube' + str(sn) + '=0.fits', format ='fits')
+#     sats = Table.read('data/cube' + str(sn) + '>0.fits', format ='fits')
+# 
+#     print('Joining ' + str(sn) + ' ...')
+#     centrals.rename_column('galaxyId', 'fofCentralId')
+#     sats = join(sats, centrals, 'fofCentralId', table_names=['s', 'c']) #column names like name_s/name_c
+# 
+#     print('Calculating velocities and distances ' + str(sn) + ' ...')
+#     sats['vpecx'] = sats['velX_s'] - sats['velX_c']
+#     sats['vpecy'] = sats['velY_s'] - sats['velY_c']
+#     sats['vpecz'] = sats['velZ_s'] - sats['velZ_c']
+#     sats['vpec'] = np.sqrt(sats['vpecx']**2+sats['vpecy']**2+sats['vpecz']**2) #magn of peculiar velocity
+# 
+#     sats = sats['fofCentralId', 'galaxyId', 'mvir', 'stellarMass', 'vpecx', 'vpecy', 'vpecz', 'vpec', 'distanceToCentralGalX', 'distanceToCentralGalY', 'distanceToCentralGalZ']
+#     sats.rename_column('distanceToCentralGalX', 'rx')
+#     sats.rename_column('distanceToCentralGalY', 'ry')
+#     sats.rename_column('distanceToCentralGalZ', 'rz')
+#     sats['r'] = np.sqrt(sats['rx']**2+sats['ry']**2+sats['rz']**2)
+# 
+#     print('Writing tables ' + str(sn) + ' ...')
+#     sats.write('data/sats' + str(sn) + '.fits', format ='fits', overwrite=True)
+# 
+# 
+# def get_nums(sn):
+#     print(sn)
+#     print('Loading...')
+#     s = Table.read('data/cube' + str(sn) + '>0.fits')
+# 
+#     print('Grouping...')
+#     g = s.group_by('fofCentralId').groups
+#     s = Table(names=('fofCentralId', 'num_sat'),
+#               data=(
+#               g.keys['fofCentralId'].data, g.indices[1:] - g.indices[:-1]))
+# 
+#     print('Loading...')
+#     c = Table.read('data/cube' + str(sn) + '=0.fits')
+#     c.rename_column('galaxyId', 'fofCentralId')
+# 
+#     print('Joining...')
+#     s = join(s, c, 'fofCentralId')['fofCentralId', 'stellarMass', 'mvir', 'num_sat']
+# 
+#     print('Writing...')
+#     s.write('data/nums' + str(sn) + '.fits', overwrite = True)
+# 
+# 
+# def joinsats(sn, clean=False, outname='data/satsnum{}.fits', **kwargs):
+#     print(sn)
+#     print('Loading sats')
+#     sats = Table.read('data/sats{}.fits'.format(sn))
+#     print('Loading nums')
+#     nums = Table.read('data/nums{}.fits'.format(sn))
+# 
+#     if clean:
+#         nums = nums[np.where(nums['num_sat'] > 2)]
+# 
+#     print('Joining...')
+#     sats = join(nums, sats, 'fofCentralId')
+# 
+#     print('Writing...')
+#     sats.write(outname.format(sn), **kwargs)
 
 
 def satkin_combine(sn):
-    centrals = load_table(FILES['cube'](sn, sats=False))
-    sats = load_table(FILES['cube'](sn, sats=True))
+    centrals = load(FILES['cube'](sn, sats=False))
+    sats = load(FILES['cube'](sn, sats=True))
 
     print('Joining ...')
     centrals.rename_column('galaxyId', 'fofCentralId')
@@ -96,8 +96,7 @@ def satkin_combine(sn):
                         + sats['ry'] ** 2
                         + sats['rz'] ** 2)
 
-    write_table(sats, FILES['sats'](sn))
-    print(sats.columns)
+    write(sats, FILES['sats'](sn))
 
     return centrals, sats
 
@@ -108,12 +107,11 @@ def satkin_get_nums(sn, centrals, sats):
 
     nums = join(nums, centrals, 'fofCentralId')['fofCentralId', 'stellarMass', 'mvir', 'num_sat']
 
-    write_table(nums, FILES['nums'](sn))
+    write(nums, FILES['nums'](sn))
 
     sats = join(sats, nums['fofCentralId', 'num_sat'], 'fofCentralId')
 
-    write_table(sats, FILES['sats'](sn))
-    print(sats.columns)
+    write(sats, FILES['sats'](sn))
 
     return nums, sats
 
@@ -123,21 +121,22 @@ def satkin_sim(sn):
 
     del centrals, nums
 
-    swp = SWProcedure(sn, False)
-    swp.sats = sats
-    swp.go()
-    del swp
+    # swp = SWProcedure(sn, False)
+    # swp.sats = sats
+    # swp.calculate_stdev()
+    # del swp
 
-    hwp = HWProcedure(sn, False)
-    hwp.sats = sats
-    hwp.go()
+    hwp = HWNProcedure(sn, False)
+    d = hwp.get_predictions()
+    d['mean'].save(FILES['data'](sn, 'hwn-mean', False))
+    d['median'].save(FILES['data'](sn, 'hwn-median', False))
 
 
 class Procedure:
     stdev_file = None
     reg_file = None
 
-    def __init__(self, sn, observe, observed=False):
+    def __init__(self, sn, observe):
         self.sn = sn
         self.observe = observe
 
@@ -149,17 +148,15 @@ class Procedure:
         if self.stdev_file is not None:
             self.stdev_file = self.stdev_file(sn, observe)
 
-        self.observed = observed
-
 
     def load_sats(self):
         if self.sats is None:
-            t = load_table(FILES['sats'](self.sn))
+            t = load(FILES['sats'](self.sn))
             t = t[np.where(t['stellarMass'] > 1e-4)]
             t['mvir'] = 10 + np.log10(t['mvir'])
             t['stellarMass'] = 10 + np.log10(t['stellarMass'])
 
-            if self.observe and not self.observed:
+            if self.observe:
                 t = Observer.get().observe(t)
 
             self.sats = t
@@ -167,10 +164,10 @@ class Procedure:
     def load_stdev(self):
         if self.stdev is None:
             try:
-                self.stdev = load_table(self.stdev_file)
+                self.stdev = load(self.stdev_file)
             except IOError:
                 print('Table does not exist! Calculating it.')
-                self.go(True)
+                self.calculate_stdev(True)
     def write_stdev(self):
         print('Writing to', self.stdev_file)
         self.stdev.write(self.stdev_file, overwrite=True)
@@ -180,12 +177,12 @@ class Procedure:
 
     def regress(self):
         raise NotImplementedError
-    def go(self, write=True):
+    def calculate_stdev(self, write=True):
         raise NotImplementedError
 
     def predict(self):
-        p = self.get_regression()
         self.load_stdev()
+        p = self.get_regression()
 
         mvir = np.log10(self.stdev['sigmax'] / p['amp']) / p['exp']
 
@@ -214,8 +211,15 @@ class Procedure:
             f.write(json.dumps(reg))
     def get_regression(self):
         if self.regression is None:
-            with open(self.reg_file) as f:
-                self.regression = json.load(f)[str(self.sn)]
+            try:
+                with open(self.reg_file) as f:
+                    self.regression = json.load(f)[str(self.sn)]
+            except IOError:
+                print('The regression does not exist! Calculating it...')
+                if self.observe:
+                    self.regression = type(self)(self.sn, False).get_regression()
+                else:
+                    self.regress()
         return self.regression
 
 
@@ -223,33 +227,37 @@ class SWProcedure(Procedure):
     reg_file = FILES['sw-reg']
     stdev_file = lambda sn, observe: FILES['sw-sigmas'](sn, 'stellarMass', observe)
 
-    def __init__(self, sn, observe, **kwargs):
-        Procedure.__init__(self, sn, observe, **kwargs)
+    def __init__(self, sn, observe):
+        Procedure.__init__(self, sn, observe)
 
         self.mvir = None
         self.mvir_file = FILES['sw-sigmas'](sn, 'mvir', observe)
 
     def load_mvir(self):
         if self.mvir is None:
-            self.mvir = load_table(self.mvir_file)
+            self.mvir = load(self.mvir_file)
+        else:
+            self.bin(PLOTDATA['bins']['mvir'][0], BINWIDTH, 'mvir',
+                     self._store_mvir, self.write_mvir)
     def write_mvir(self):
-        write_table(self.mvir, self.mvir_file)
+        write(self.mvir, self.mvir_file)
 
     def get_subset(self):
-        t = load_table(FILES['nums'](self.sn))
+        t = load(FILES['nums'](self.sn))
         return t[np.where(t['num_sat'] > 2)]
 
-    def store_stdev(self, stdev):
+    def _store_stdev(self, stdev):
         self.stdev = stdev
-    def store_mvir(self, mvir):
+    def _store_mvir(self, mvir):
         self.mvir = mvir
 
     def bin(self, left, width, mname, store, write=None):
-        print('Binning by', mname)
+        self.load_sats()
+
         self.sats['bin'] = np.floor_divide(self.sats[mname] - left, width)
         binned = self.sats.group_by('bin')
+        self.sats.remove_column('bin')
 
-        print('Aggregating')
         res = binned['bin', 'vpec', 'vpecx', 'vpecy', 'vpecz'].groups.aggregate(np.std)
 
         res.rename_column('vpec', 'sigma')
@@ -267,6 +275,28 @@ class SWProcedure(Procedure):
         if callable(write):
             write()
 
+    def regress(self, write=True):
+        print('Regressing...')
+        self.load_mvir()
+
+        indices, fit = fit_or(models.PowerLawModel(), self.mvir['sigmax'], x=np.power(10, self.mvir['mvir']))
+
+        self.regression = {
+            'exp': fit.params['exponent'].value,
+            'err_exp': fit.params['exponent'].stderr,
+            'amp': fit.params['amplitude'].value,
+            'err_amp': fit.params['amplitude'].stderr,
+            'indices': indices.tolist()
+        }
+
+        if write:
+            self.write_regression()
+
+    def calculate_stdev(self, write=True):
+        print('Calculating stdev')
+        self.bin(PLOTDATA['bins']['stellarMass'][0], BINWIDTH, 'stellarMass',
+                 self._store_stdev, self.write_stdev if write else False)
+    
     def plot(self, mname, xlim, xlabel='$\log_{10}(M / M_\odot)$', sparse=333):
         print('Plotting...')
         fig, ax = plt.subplots(2, 1, sharex='col', squeeze=True,
@@ -303,48 +333,12 @@ class SWProcedure(Procedure):
         plt.ylim(1, 2)
         plt.xlim(xlim)
 
-    def regress(self, write=True):
-        self.load_mvir()
-
-        print('Regressing...')
-        indices, fit = fit_or(models.PowerLawModel(), self.mvir['sigmax'], x=np.power(10, self.mvir['mvir']))
-
-        self.regression = {
-            'exp': fit.params['exponent'].value,
-            'err_exp': fit.params['exponent'].stderr,
-            'amp': fit.params['amplitude'].value,
-            'err_amp': fit.params['amplitude'].stderr,
-            'indices': indices.tolist()
-        }
-
-        if write:
-            self.write_regression()
-
-    def go(self, write=True, plot=False):
-        self.load_sats()
-
-        self.bin(PLOTDATA['bins']['stellarMass'][0], BINWIDTH, 'stellarMass', self.store_stdev, self.write_stdev)
-
-        if not self.observe:
-            self.bin(PLOTDATA['bins']['mvir'][0], BINWIDTH, 'mvir', self.store_mvir, self.write_mvir)
-            self.regress(write)
-
-        if plot:
-            for mname in ('stellarMass', 'mvir'):
-                xlim = PLOTDATA['bins'][mname][0], PLOTDATA['bins'][mname][-1]
-
-                self.plot(mname, xlim)
-                fname = FILES['plot-sw-sigmas'](self.sn, mname, self.observe)
-                plt.savefig(fname)
-                print('Figure saved:', fname)
-                plt.close()
-
 
 class HWProcedure(Procedure):
     reg_file = FILES['hw-reg']
 
-    def __init__(self, sn, observe, **kwargs):
-        Procedure.__init__(self, sn, observe, **kwargs)
+    def __init__(self, sn, observe):
+        Procedure.__init__(self, sn, observe)
 
         self.rms = None
         self.rms_file = FILES['hw-rms'](sn, observe)
@@ -352,21 +346,22 @@ class HWProcedure(Procedure):
     def bin(self, left, width, write=True):
         raise NotImplementedError
 
-    def load_rms(self):
+    def load_rms(self, write=True):
         if self.rms is None:
             try:
-                self.rms = load_table(self.rms_file)
+                self.rms = load(self.rms_file)
             except IOError:
                 print('The table does not exist! Calculating it...')
-                self.calculate(True)
+                self.calculate_rms(write)
     def write_rms(self):
-        write_table(self.rms, self.rms_file)
+        write(self.rms, self.rms_file)
 
     def get_subset(self):
         self.load_rms()
         return self.rms
 
-    def calculate(self, write=True):
+    def calculate_rms(self, write=True):
+        print('Calculating rms')
         self.load_sats()
 
         print('Grouping by fofCentralId...')
@@ -384,7 +379,7 @@ class HWProcedure(Procedure):
             rms.rename_column(col, col.replace('vpec', 'rms'))
 
         print('Joining with centrals data...')
-        nums = load_table(FILES['nums'](self.sn))
+        nums = load(FILES['nums'](self.sn))
         rms = join(rms, nums, keys='fofCentralId')
         self.rms = rms
 
@@ -392,10 +387,10 @@ class HWProcedure(Procedure):
             self.write_rms()
 
     def regress(self, write=True):
+        print('Regressing...')
         self.load_rms()
 
         t = deal(self.rms)
-        print('Regressing...')
         indices, fit = fit_or(models.PowerLawModel(), t['rmsx'], x=np.power(10, t['mv']))
 
         self.regression = {
@@ -408,17 +403,13 @@ class HWProcedure(Procedure):
         if write:
             self.write_regression()
 
-    def go(self, write=True):
-        self.load_sats()
-
-        self.calculate(write)
+    def calculate_stdev(self, write=True):
+        print('Calculating stdev')
+        self.load_rms(write)
         try:
             self.bin(PLOTDATA['bins']['stellarMass'][0], BINWIDTH, write)
         except NotImplementedError:
             pass
-
-        if not self.observe:
-            self.regress(write)
 
 class HWSigmaProcedure(HWProcedure):
     @staticmethod
@@ -428,7 +419,6 @@ class HWSigmaProcedure(HWProcedure):
     def bin(self, left, width, write=True):
         self.load_rms()
 
-        print('Binning in stellarMass')
         t = deal(self.rms)
         t['bin'] = np.floor_divide(t['ms'] - left, width)
         binned = t.group_by('bin')
@@ -479,6 +469,7 @@ class HWNProcedure(HWProcedure):
         raise NotImplementedError
 
     def predict(self):
+        print('Predicting')
         p = self.get_regression()
         self.load_rms()
 
