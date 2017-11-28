@@ -5,9 +5,9 @@ import threading
 import math
 import requests
 
-def print(*args, end='\n', flush=False):
-    sys.stdout.write(' '.join(args)+end)
-    if flush:
+def print(*args, **kwargs):
+    sys.stdout.write(' '.join(args)+(kwargs['end'] if 'end' in kwargs else ''))
+    if 'flush' in kwargs:
         sys.stdout.flush()
 
 SI_PREFIXES = ('n', 'u', 'm', '', 'k', 'M', 'G', 'T')
