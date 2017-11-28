@@ -6,7 +6,7 @@ import math
 import requests
 
 def print(*args, **kwargs):
-    sys.stdout.write(' '.join(args)+(kwargs['end'] if 'end' in kwargs else ''))
+    sys.stdout.write(' '.join([repr(a) for a in args])+(kwargs['end'] if 'end' in kwargs else ''))
     if 'flush' in kwargs:
         sys.stdout.flush()
 
