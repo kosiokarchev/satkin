@@ -161,7 +161,7 @@ class Downloader:
             open(self.out, 'w').close() # Just empty the file, no delete
             self.overwritten = True
 
-        rep_thread = threading.Thread(target=self.report, daemon=True)
+        rep_thread = threading.Thread(target=self.report)
         rep_thread.start()
 
         try:
