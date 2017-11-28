@@ -127,6 +127,7 @@ def satkin_sim(sn):
     nums, sats = satkin_get_nums(sn, centrals, sats)
 
     del centrals, nums
+    del loaded_tables[FILES['cube'](sn)], loaded_tables[FILES['nums'](sn)]
 
     # swp = SWProcedure(sn, False)
     # swp.sats = sats
