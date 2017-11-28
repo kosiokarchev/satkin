@@ -1,9 +1,13 @@
-from __future__ import print_function
-import os
+import os, sys
 from time import time, sleep
 import threading
 import math
 import requests
+
+def print(*args, end='\n', flush=False):
+    sys.stdout.write(' '.join(args)+end)
+    if flush:
+        sys.stdout.flush()
 
 SI_PREFIXES = ('n', 'u', 'm', '', 'k', 'M', 'G', 'T')
 def SI(n, r=3):
@@ -69,7 +73,7 @@ class Downloader:
     @staticmethod
     def load_pass():
         pf = os.path.join(os.path.dirname(__file__), 'credentials.txt')
-        with open(pf, encoding='ascii') as f:
+        with open(pf) as f:
             usr, pwd = f.read().replace('\n', '').split(':')
         return usr, pwd
 
