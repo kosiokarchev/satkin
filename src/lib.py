@@ -1,4 +1,4 @@
-from downloader import Query, Downloader, csv2fits
+from downloader import *
 from binner import binX, bin2d
 from observer import Observer
 from data import Data

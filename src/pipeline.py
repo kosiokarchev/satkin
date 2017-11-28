@@ -1,3 +1,4 @@
+import os
 from lib import *
 
 TABLES = {'H15-cube': 'Henriques2015a..MRscPlanck1',
@@ -33,3 +34,5 @@ class Pipeline:
             d.go()
 
             csv2fits(fname, FILES['cube'](self.sn), cols)
+
+            os.remove(fname)
