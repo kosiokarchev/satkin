@@ -4,8 +4,11 @@ from observer import Observer
 from data import Data
 
 
-__all__ = ('SWProcedure',
-           'HWAProcedure', 'HWMProcedure', 'HWNProcedure', 'HWPProcedure')
+__all__ = (
+    'procs', 'procnames',
+    'SWProcedure',
+    'HWAProcedure', 'HWMProcedure', 'HWNProcedure', 'HWPProcedure'
+)
 
 
 class Procedure:
@@ -385,3 +388,7 @@ class HWNProcedure(HWProcedure):
             'mean': Data(mvir=b[1]['mean'], mstar=b[0]['mean'],
                          err_mvir=b[1]['std'], N=b[0]['N'])
         }
+
+
+procs = SWProcedure, HWAProcedure, HWMProcedure, HWNProcedure, HWPProcedure
+procnames = 'sw', 'hwa', 'hwm', 'hwn', 'hwp'
