@@ -7,6 +7,7 @@ import lmfit
 from lmfit import models
 from matplotlib import pyplot as plt
 
+from print_function import print
 from settings import *
 
 

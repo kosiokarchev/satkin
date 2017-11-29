@@ -1,18 +1,15 @@
 from __future__ import print_function
-import os, sys
+import os
 from time import time, sleep
 import threading
 import math
 import requests
 
+from print_function import print
+
 
 __all__ = ('Query', 'Downloader', 'csv2fits')
 
-
-def print(*args, **kwargs):
-    sys.stdout.write(' '.join([str(a) for a in args])+(kwargs['end'] if 'end' in kwargs else ''))
-    if 'flush' in kwargs:
-        sys.stdout.flush()
 
 SI_PREFIXES = ('n', 'u', 'm', '', 'k', 'M', 'G', 'T')
 def SI(n, r=3):
