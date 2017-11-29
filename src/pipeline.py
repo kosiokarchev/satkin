@@ -24,7 +24,7 @@ class Pipeline:
         where = 'snapnum={} AND type{}'.format(self.sn, typewhere)
         q = Query(cols, TABLES['H15-cube'], where)
 
-        csvname = fname.replace('.csv', '.fits')
+        csvname = fname.replace('.fits', '.csv')
 
         d = Downloader(q, csvname,
                        isline=lambda line: not (
