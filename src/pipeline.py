@@ -36,20 +36,20 @@ class Pipeline:
         os.remove(csvname)
 
         def download_centrals(self):
-            self._download(FILES['cube'](self.sn, sats=False), '=0', cols_centrals)
+            self._download(FILES['cube'](self.sn, _sats=False), '=0', cols_centrals)
         def download_satellites(self):
-            self._download(FILES['cube'](self.sn, sats=True), '>0', cols_satellites)
+            self._download(FILES['cube'](self.sn, _sats=True), '>0', cols_satellites)
 
     def download(self, sats='both'):
         if (not sats) or (sats=='both'):
-            self._download(FILES['cube'](self.sn, sats=False), '=0', cols_centrals)
+            self._download(FILES['cube'](self.sn, _sats=False), '=0', cols_centrals)
         if sats:
-            self._download(FILES['cube'](self.sn, sats=True), '>0', cols_satellites)
+            self._download(FILES['cube'](self.sn, _sats=True), '>0', cols_satellites)
 
     def combine(self):
         print('Calculating satellite characteristics')
-        centrals = load(FILES['cube'](self.sn, sats=False))
-        sats = load(FILES['cube'](self.sn, sats=True))
+        centrals = load(FILES['cube'](self.sn, _sats=False))
+        sats = load(FILES['cube'](self.sn, _sats=True))
 
         print('Joining')
         centrals.rename_column('galaxyId', 'fofCentralId')
@@ -83,7 +83,7 @@ class Pipeline:
 
     def count(self):
         print('Counting satellites')
-        centrals = load(FILES['cube'](self.sn, sats=False))
+        centrals = load(FILES['cube'](self.sn, _sats=False))
         sats = load(FILES['sats'](self.sn))
 
         g = sats.group_by('fofCentralId').groups
@@ -102,7 +102,7 @@ class Pipeline:
         write(sats, FILES['sats'](self.sn))
 
     def god_predict(self):
-        centrals = load(FILES['cube'](self.sn, sats=False))
+        centrals = load(FILES['cube'](self.sn, _sats=False))
 
         t = deal(centrals['mvir', 'stellarMass'])
         b = bin2d(t, 'mv', 'ms', )
@@ -115,7 +115,7 @@ class Pipeline:
         self.count()
         self.god_predict()
 
-        del loaded_tables[FILES['cube'](self.sn, sats=False)]
+        del loaded_tables[FILES['cube'](self.sn, _sats=False)]
 
     def theplot(self):
         pass
