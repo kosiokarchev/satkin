@@ -1,6 +1,8 @@
 from __future__ import print_function
-import sys
+import os, sys
 
 def print(*args, **kwargs):
-    sys.stdout.write(' '.join([str(a) for a in args])+(kwargs['end'] if 'end' in kwargs else ''))
+    msg = ' '.join([str(a) for a in args])
+    end = kwargs['end'] if 'end' in kwargs else os.linesep
+    sys.stdout.write(msg+end)
     sys.stdout.flush()
