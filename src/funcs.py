@@ -18,6 +18,9 @@ def load(fname, **kwargs):
         t = Table.read(fname, **kwargs)
         loaded_tables[fname] = t
     return loaded_tables[fname]
+def unload(fname):
+    if fname in loaded_tables:
+        del loaded_tables[fname]
 def write(t, fname, **kwargs):
     print('Writing to', fname)
     t.write(fname, overwrite=True, **kwargs)
