@@ -102,9 +102,10 @@ class Pipeline:
         write(sats, FILES['sats'](self.sn))
 
     def god_predict(self):
-        centrals = load(FILES['cube'](self.sn, _sats=False))
+        print('Observing from God\'s viewpoint')
+        nums = load(FILES['nums'](self.sn))
 
-        t = deal(centrals['mvir', 'stellarMass'])
+        t = deal(nums['mvir', 'stellarMass'])
         b = bin2d(t, 'mv', 'ms', )
         b.compute(PLOTDATA['bins']['mvir'], PLOTDATA['bins']['stellarMass'])
         b.save(FILES['3dbins'](self.sn))
@@ -113,14 +114,29 @@ class Pipeline:
         print('Manipulating the raw data')
         self.combine()
         self.count()
-        self.god_predict()
 
-        del loaded_tables[FILES['cube'](self.sn, _sats=False)]
+        unload(FILES['cube'](self.sn, _sats=False))
 
     def theplot(self):
-        pass
+        sats = load(FILES['sats'](self.sn))
+        for observe in (False, True):
+            if observe:
+                sats = Observer.get().observe(sats)
+
+            for P, name in zip(procs, procnames):
+                p = P(self.sn, observe)
+                p.sats = sats
+                d = p.get_predictions()
+                if isinstance(d, Data):
+                    d.save(FILES['data'](self.sn, name, observe))
+                else:
+                    for key in d:
+                        d[key].save(FILES['data'](self.sn, name+'-'+key, observe))
 
     def __call__(self):
+        print('Starting the pipeline for sn ', self.sn)
         self.download()
         self.manipulate()
+        self.god_predict()
         self.theplot()
+        print('Pipeline finished for sn ', self.sn)
