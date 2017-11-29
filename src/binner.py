@@ -23,9 +23,9 @@ def binX(t, x, y, nbins=20, bins=None, funcsx=None, funcsy=None):
         left = np.min(t[x])
         width = (np.max(t[x]) - left) / nbins
 
+    t = t[x, y]
     t['bin'] = np.floor_divide(t[x] - left, width).astype(int)
     g = t.group_by('bin')
-    t.remove_column('bin')
 
     statsx = []
     statsy = []
