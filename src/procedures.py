@@ -25,7 +25,7 @@ class Procedure:
         self.predictions = None
 
         if self.stdev_file is not None:
-            self.stdev_file = type(self).stdev_file(sn, observe)
+            self.stdev_file = self.__class__.stdev_file(sn, observe)
 
     def load_sats(self):
         if self.sats is None:
