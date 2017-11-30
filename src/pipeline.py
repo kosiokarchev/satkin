@@ -118,7 +118,8 @@ class Pipeline:
         unload(FILES['cube'](self.sn, _sats=False))
 
     def theplot(self):
-        sats = load(FILES['sats'](self.sn))
+        sats = load_sats(self.sn)
+
         for observe in (False, True):
             if observe:
                 sats = Observer.get().observe(sats)

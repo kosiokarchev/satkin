@@ -5,10 +5,19 @@ from data import Data
 
 
 __all__ = (
+    'load_sats',
     'procs', 'procnames',
     'SWProcedure',
     'HWAProcedure', 'HWMProcedure', 'HWNProcedure', 'HWPProcedure'
 )
+
+
+def load_sats(sn):
+    t = load(FILES['sats'](sn))
+    t = t[np.where(t['stellarMass'] > 1e-4)]
+    t['mvir'] = 10 + np.log10(t['mvir'])
+    t['stellarMass'] = 10 + np.log10(t['stellarMass'])
+    return t
 
 
 class Procedure:
@@ -29,10 +38,7 @@ class Procedure:
 
     def load_sats(self):
         if self.sats is None:
-            t = load(FILES['sats'](self.sn))
-            t = t[np.where(t['stellarMass'] > 1e-4)]
-            t['mvir'] = 10 + np.log10(t['mvir'])
-            t['stellarMass'] = 10 + np.log10(t['stellarMass'])
+            t = load_sats(self.sn)
 
             if self.observe:
                 t = Observer.get().observe(t)
