@@ -25,7 +25,7 @@ class Procedure:
         self.predictions = None
 
         if self.stdev_file is not None:
-            self.stdev_file = self.stdev_file(sn, observe)
+            self.stdev_file = type(self).stdev_file(sn, observe)
 
     def load_sats(self):
         if self.sats is None:
@@ -107,14 +107,13 @@ class Procedure:
 
 class SWProcedure(Procedure):
     reg_file = FILES['sw-reg']
-    stdev_file = lambda sn, observe: FILES['sw-sigmas'](sn, 'stellarMass',
-                                                        observe)
+    stdev_file = FILES['sw-sigmas']
 
     def __init__(self, sn, observe):
         Procedure.__init__(self, sn, observe)
 
         self.mvir = None
-        self.mvir_file = FILES['sw-sigmas'](sn, 'mvir', observe)
+        self.mvir_file = FILES['sw-sigmas'](sn, observe, 'mvir')
 
     def load_mvir(self):
         if self.mvir is None:

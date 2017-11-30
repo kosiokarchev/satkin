@@ -23,7 +23,7 @@ FILES = {
 
     'sw-reg': 'data/sw-reg.json',
     'sw-reg-mvir': lambda _sn: 'data/sw-reg-mvir{}.csv'.format(_sn),
-    'sw-sigmas': lambda _sn, _mname='stellarMass', _observe=False: 'data/{}sw-sigmas-{}{}.csv'.format('observe/' if _observe else '', _mname, _sn),
+    'sw-sigmas': lambda _sn, _observe=False, _mname='stellarMass': 'data/{}sw-sigmas-{}{}.csv'.format('observe/' if _observe else '', _mname, _sn),
     'plot-sw-sigmas': lambda _sn, _mname='stellarMass', _observe=False: 'plots/{}sigmas-{}{}.pdf'.format('observe/' if _observe else '', _mname, _sn),
 
     'hw-reg': 'data/hw-reg.json',
