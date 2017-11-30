@@ -25,7 +25,7 @@ class Procedure:
         self.predictions = None
 
         if self.stdev_file is not None:
-            self.stdev_file = self.stdev_file.__func__(sn, observe)
+            self.stdev_file = self.stdev_file.__func__(sn, observe) # Python 2....
 
     def load_sats(self):
         if self.sats is None:
@@ -117,10 +117,12 @@ class SWProcedure(Procedure):
 
     def load_mvir(self):
         if self.mvir is None:
-            self.mvir = load(self.mvir_file)
-        else:
-            self.bin(PLOTDATA['bins']['mvir'][0], BINWIDTH, 'mvir',
-                     self._store_mvir, self.write_mvir)
+            try:
+                self.mvir = load(self.mvir_file)
+            except IOError:
+                print('Table does not exist! Calculating it...')
+                self.bin(PLOTDATA['bins']['mvir'][0], BINWIDTH, 'mvir',
+                         self._store_mvir, self.write_mvir)
 
     def write_mvir(self):
         write(self.mvir, self.mvir_file)
