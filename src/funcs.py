@@ -1,8 +1,11 @@
 from __future__ import print_function, division
 import json
 import numpy as np
+from scipy.io import readsav
+from scipy.special import erf
 from astropy.stats import sigma_clip
 from astropy.table import Table, join, unique
+from astropy.cosmology import Planck13
 import lmfit
 from lmfit import models
 from matplotlib import pyplot as plt
@@ -37,6 +40,12 @@ def load_table(fname, **kwargs):
 def write_table(t, fname, **kwargs):
     print('Writing to', fname)
     t.write(fname, overwrite=True, **kwargs)
+
+def read_idl(fname, prefix=None):
+    s = readsav(fname)
+    names = s.keys()
+    return Table([s[key] for key in names],
+                 names=[k.replace(prefix+'_', '') for k in names] if prefix is not None else names)
 
 def deal(t):
     t = t[np.where(t['stellarMass'] > 1e-4)]
@@ -75,6 +84,19 @@ def fit_or(model, data, outlier_func=sigma_clip, niter=3, outlier_kwargs=None, *
         fit_res = model.fit(data, **model_kwargs)
 
     return indices, fit_res
+
+def two_lines(x, x0, y0, a1, a2):
+    res = np.full_like(x, y0)
+    lower = x<x0
+    res[lower] += a1*(x[lower]-x0)
+    res[~lower] += a2*(x[~lower]-x0)
+
+    return res
+
+def cumgauss(x, sigma, A, B):
+    return A * erf(x / (np.sqrt(2) * sigma)) + B * x
+
+from conversions import s2h, mvir2c
 
 
 # from binner import bin2d, binX
