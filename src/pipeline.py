@@ -276,17 +276,18 @@ class ConePipeline:
             ConePipeline(cone, oname=oname, quiet=True, seed=seed)._bootstrap(i, n)
             print(current_process().name, 'has finished')
 
-        n = np.ceil(N/nproc)
-        procs = []
-        for i in np.arange(start, start+N, n):
-            proc = Process(target=bootstrap_one,
-                           args=(int(i), int(n),
-                                 np.uint32(np.random.random()*(2**31))))
-            proc.start()
-            procs.append(proc)
+        n = int(np.ceil(N/nproc))
+        procs = [Process(target=bootstrap_one,
+                         args=(int(i), n,
+                               np.uint32(np.random.random()*(2**31))))
+                 for i in range(start, start+N, n)]
 
-        for proc in procs:
-            proc.join()
+        print('Bootstrapping using', len(procs), 'processes.')
+
+        for proc in procs: proc.start()
+        for proc in procs: proc.join()
+
+        print('Bootstrap complete.')
 
     def _bootstrap(self, start, n):
         for i in range(start, start+n):
