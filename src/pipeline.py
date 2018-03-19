@@ -1,5 +1,5 @@
 import os
-from multiprocessing import Process, cpu_count
+from multiprocessing import Process, cpu_count, current_process
 import numdifftools as nd
 from scipy.optimize import minimize
 from lib import *
@@ -274,6 +274,7 @@ class ConePipeline:
         def bootstrap_one(i, n, seed):
             cone = load(fname)
             ConePipeline(cone, oname=oname, quiet=True, seed=seed)._bootstrap(i, n)
+            print(current_process().name, 'has finished')
 
         n = np.ceil(N/nproc)
         procs = []
