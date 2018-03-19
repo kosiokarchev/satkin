@@ -1,5 +1,5 @@
 import os
-from multiprocessing import Process
+from multiprocessing import Process, cpu_count
 import numdifftools as nd
 from scipy.optimize import minimize
 from lib import *
@@ -270,15 +270,17 @@ class ConePipeline:
         self.predict()
 
     @staticmethod
-    def bootstrap(fname, oname, N, nproc):
+    def bootstrap(fname, oname, N, start=0, nproc=cpu_count()):
         def bootstrap_one(i, n, seed):
             cone = load(fname)
             ConePipeline(cone, oname=oname, quiet=True, seed=seed)._bootstrap(i, n)
 
         n = np.ceil(N/nproc)
         procs = []
-        for i in np.arange(0, N, n):
-            proc = Process(target=bootstrap_one, args=(int(i), int(n), np.uint32(np.random.random()*(2**31))))
+        for i in np.arange(start, start+N, n):
+            proc = Process(target=bootstrap_one,
+                           args=(int(i), int(n),
+                                 np.uint32(np.random.random()*(2**31))))
             proc.start()
             procs.append(proc)
 
