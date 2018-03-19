@@ -1,4 +1,5 @@
 import os
+from multiprocessing import Process
 import numdifftools as nd
 from scipy.optimize import minimize
 from lib import *
@@ -188,7 +189,7 @@ class ConePipeline:
 
         return mvir, mvir_err
 
-    def __init__(self, cone, nvircen=2, nvirsat=1, dvcen=3000, dvsat=3000, binwidth=0.1):
+    def __init__(self, cone, nvircen=2, nvirsat=1, dvcen=3000, dvsat=3000, binwidth=0.1, oname='res{}.fits', quiet=False, seed=None):
         self.cone = cone
 
         self.nvircen = nvircen
@@ -198,12 +199,18 @@ class ConePipeline:
 
         self.binwidth = binwidth
 
+        self.oname = oname
+
+        self.quiet = quiet
+        self.seed = seed
+
         self.sample = None
         self.cen = None
         self.sats = None
         self.res = None
 
     def create_sample(self):
+        np.random.seed(self.seed)
         s = self.cone['p'] > np.random.random(len(self.cone))
         self.sample = self.cone['galaxyId', 'fofCentralId',
                                 'mvir', 'stellarMass', 'sfr',
@@ -241,7 +248,8 @@ class ConePipeline:
                 continue
 
             ms.append((g.groups.keys['bin'][i] + 0.5) * self.binwidth)
-            print('ms={:.2f} [{}:{}] / {}'.format(ms[-1], start, end, len(g)))
+            if not self.quiet:
+                print('ms={:.2f} [{}:{}] / {}'.format(ms[-1], start, end, len(g)))
             dv = g['dv'][start:end]
             res = ConePipeline.fit_cumgauss(dv)
             sigma.append(res[0][0])
@@ -261,8 +269,24 @@ class ConePipeline:
         self.examine()
         self.predict()
 
-    def bootstrap(self, n, fname):
-        for i in range(n):
-            print('='*32, 'BOOTSTRAP {:>04}'.format(i), '='*32)
+    @staticmethod
+    def bootstrap(fname, oname, N, nproc):
+        def bootstrap_one(i, n, seed):
+            cone = load(fname)
+            ConePipeline(cone, oname=oname, quiet=True, seed=seed)._bootstrap(i, n)
+
+        n = np.ceil(N/nproc)
+        procs = []
+        for i in np.arange(0, N, n):
+            proc = Process(target=bootstrap_one, args=(int(i), int(n), np.uint32(np.random.random()*(2**31))))
+            proc.start()
+            procs.append(proc)
+
+        for proc in procs:
+            proc.join()
+
+    def _bootstrap(self, start, n):
+        for i in range(start, start+n):
+            print('Starting bootstrap', i)
             self.go()
-            write(self.res, fname.format(i))
+            write(self.res, self.oname.format(i))
