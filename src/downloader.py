@@ -194,10 +194,10 @@ class Downloader:
         return s
 
 
-def csv2fits(fname, outname, cols):
+def csv2fits(fname, outname, cols, data_start=0):
     from astropy.io import ascii
     print('Loading', fname)
-    t = ascii.read(fname, format='csv', names=cols, data_start=0,
+    t = ascii.read(fname, format='csv', names=cols, data_start=data_start,
                    fast_reader={'parallel': True})
     print('Loaded', fname)
     for c in t.colnames:
