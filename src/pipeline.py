@@ -230,28 +230,24 @@ class ConePipeline:
 
         g = g.group_by('bin')
 
+        ms = []
         sigma = []
         sigma_err = []
-        # A = []
-        # A_err = []
-        # B = []
-        # B_err = []
         for i in range(len(g.groups.indices)-1):
             start = g.groups.indices[i]
             end = g.groups.indices[i+1]
-            print('Fitting [{}:{}] / {}'.format(start, end, len(g)))
+
+            if end-start < 5:
+                continue
+
+            ms.append((g.groups.keys['bin'][i] + 0.5) * self.binwidth)
+            print('ms={:.2f} [{}:{}] / {}'.format(ms[-1], start, end, len(g)))
             dv = g['dv'][start:end]
             res = ConePipeline.fit_cumgauss(dv)
             sigma.append(res[0][0])
             sigma_err.append(res[1][0])
-            # A.append(res[0][1])
-            # A_err.append(res[1][1])
-            # B.append(res[0][2])
-            # B_err.append(res[1][2])
 
-        self.res = Table(dict(ms=(g.groups.keys['bin'] + 0.5) * self.binwidth,
-                              sigma=sigma,
-                              sigma_err=sigma_err))
+        self.res = Table(dict(ms=ms, sigma=sigma, sigma_err=sigma_err))
 
         self.res['mv'], self.res['mv_err'] = ConePipeline.sigma2mvir(self.res['sigma'], self.res['sigma_err'])
 
@@ -267,5 +263,6 @@ class ConePipeline:
 
     def bootstrap(self, n, fname):
         for i in range(n):
+            print('='*32, 'BOOTSTRAP {:>04}'.format(i), '='*32)
             self.go()
             write(self.res, fname.format(i))
