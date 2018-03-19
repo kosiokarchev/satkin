@@ -4,7 +4,8 @@ from astropy.coordinates import SkyCoord
 from astropy import cosmology as cosmo
 from galocator_mod import galocator as _galocator
 
-def galocate(t, *args, nvircen=2, nvirsat=1, dvcen=3000, dvsat=3000, fM=1.0, d0=2):
+
+def galocate(t, nvircen=2, nvirsat=1, dvcen=3000, dvsat=3000, fM=1.0, d0=2):
     zmax = np.max(t['z_app'])
     dvcen = dvcen / 3e5
     dvsat = dvsat / 3e5
