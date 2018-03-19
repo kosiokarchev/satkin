@@ -1,4 +1,6 @@
 import os
+import numdifftools as nd
+from scipy.optimize import minimize
 from lib import *
 
 TABLES = {'H15-cube': 'Henriques2015a..MRscPlanck1',
@@ -27,18 +29,17 @@ class Pipeline:
         csvname = fname.replace('.fits', '.csv')
 
         d = Downloader(q, csvname,
-                       isline=lambda line: not (
-                       line[0] == '#' or line[0] == 'g'))
+                       isline=lambda line: not (line[0] == '#' or line[0] == 'g'))
         d.go()
 
         csv2fits(csvname, fname, cols)
 
         os.remove(csvname)
 
-        def download_centrals(self):
-            self._download(FILES['cube'](self.sn, _sats=False), '=0', cols_centrals)
-        def download_satellites(self):
-            self._download(FILES['cube'](self.sn, _sats=True), '>0', cols_satellites)
+        # def download_centrals(self):
+        #     self._download(FILES['cube'](self.sn, _sats=False), '=0', cols_centrals)
+        # def download_satellites(self):
+        #     self._download(FILES['cube'](self.sn, _sats=True), '>0', cols_satellites)
 
     def download(self, sats='both'):
         if (not sats) or (sats=='both'):
@@ -141,3 +142,130 @@ class Pipeline:
         self.god_predict()
         self.theplot()
         print('Pipeline finished for sn ', self.sn)
+
+
+class ConePipeline:
+    @staticmethod
+    def split(t):
+        centrals = t['galaxyId', 'stellarMass', 'z_app'][t['iscen']]
+        centrals.rename_column('galaxyId', 'fofCentralId')
+
+        sats = t['cId', 'z_app', 'd'][t['issat']]
+        sats.rename_column('cId', 'fofCentralId')
+
+        sats = join(sats, centrals, 'fofCentralId')
+
+        sats['dz'] = sats['z_app_1'] - sats['z_app_2']
+        sats.rename_column('z_app_2', 'z')
+
+        return centrals, sats['fofCentralId', 'stellarMass', 'z', 'dz', 'd']
+
+    @staticmethod
+    def fit_cumgauss(dv):
+        dv = np.abs(dv)
+        dv.sort()
+
+        p0 = (300, 500 / len(dv), 200 / len(dv) / np.max(dv))
+
+        y = (np.arange(len(dv)) + 1) / len(dv)
+        func = lambda args: ((y - cumgauss(dv, *args)) ** 2).sum()
+        res = minimize(func, p0, method='Nelder-Mead')
+
+        if res.success:
+            popt = res.x
+            pcov = np.linalg.pinv(nd.Hessian(func)(popt))
+            errs = np.sqrt(np.abs(np.diag(pcov)))
+            return popt, errs
+        else:
+            return np.array(p0), np.array([np.inf]*3)
+
+    s2m = HWAProcedure(34, False).get_regression()
+
+    @staticmethod
+    def sigma2mvir(sigma, sigma_err):
+        mvir = np.log10(sigma / ConePipeline.s2m['amp']) / ConePipeline.s2m['exp']
+        mvir_err = (1 / (np.log(10) * ConePipeline.s2m['exp'])) * sigma_err / sigma
+
+        return mvir, mvir_err
+
+    def __init__(self, cone, nvircen=2, nvirsat=1, dvcen=3000, dvsat=3000, binwidth=0.1):
+        self.cone = cone
+
+        self.nvircen = nvircen
+        self.nvirsat = nvirsat
+        self.dvcen = dvcen
+        self.dvsat = dvsat
+
+        self.binwidth = binwidth
+
+        self.sample = None
+        self.cen = None
+        self.sats = None
+        self.res = None
+
+    def create_sample(self):
+        s = self.cone['p'] > np.random.random(len(self.cone))
+        self.sample = self.cone['galaxyId', 'fofCentralId',
+                                'mvir', 'stellarMass', 'sfr',
+                                'z_app', 'ra', 'dec', 'd_comoving'][s]
+
+    def examine(self):
+        res = galocate(self.sample,
+                       nvircen=self.nvircen, nvirsat=self.nvirsat,
+                       dvcen=self.dvcen, dvsat=self.dvsat)
+
+        self.sample['iscen'] = res['iscen']
+        self.sample['cId']   = res['fofCentralId']
+        self.sample['d']     = res['d']
+        self.sample['issat'] = np.logical_and(~res['iscen'],
+                                              res['fofCentralId'])
+
+        self.cen, self.sats = ConePipeline.split(self.sample)
+
+    def predict(self):
+        g = Table()
+        g['dv'] = 3e5 * self.sats['dz'] / (1 + self.sats['z'])
+        g['ms'] = 10 + np.log10(self.sats['stellarMass'])
+        g['bin'] = g['ms'] // self.binwidth
+
+        g = g.group_by('bin')
+
+        sigma = []
+        sigma_err = []
+        # A = []
+        # A_err = []
+        # B = []
+        # B_err = []
+        for i in range(len(g.groups.indices)-1):
+            start = g.groups.indices[i]
+            end = g.groups.indices[i+1]
+            print('Fitting [{}:{}] / {}'.format(start, end, len(g)))
+            dv = g['dv'][start:end]
+            res = ConePipeline.fit_cumgauss(dv)
+            sigma.append(res[0][0])
+            sigma_err.append(res[1][0])
+            # A.append(res[0][1])
+            # A_err.append(res[1][1])
+            # B.append(res[0][2])
+            # B_err.append(res[1][2])
+
+        self.res = Table(dict(ms=(g.groups.keys['bin'] + 0.5) * self.binwidth,
+                              sigma=sigma,
+                              sigma_err=sigma_err))
+
+        self.res['mv'], self.res['mv_err'] = ConePipeline.sigma2mvir(self.res['sigma'], self.res['sigma_err'])
+
+    def plot(self):
+        plt.errorbar(self.res['mv'], self.res['ms'], xerr=self.res['mv_err'], linestyle='', marker='o')
+        plt.xlim(10, 15)
+        plt.ylim(7, 12)
+
+    def go(self):
+        self.create_sample()
+        self.examine()
+        self.predict()
+
+    def bootstrap(self, n, fname):
+        for i in range(n):
+            self.go()
+            write(self.res, fname.format(i))
