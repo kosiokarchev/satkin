@@ -102,11 +102,11 @@ class Procedure:
                 with open(self.reg_file) as f:
                     self.regression = json.load(f)[str(self.sn)]
             except IOError:
-                print('The regression does not exist! Calculating it...')
                 if self.observe:
                     self.regression = type(self)(self.sn,
                                                  False).get_regression()
                 else:
+                    print('The regression does not exist! Calculating it...')
                     self.regress()
         return self.regression
 
