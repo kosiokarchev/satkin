@@ -34,5 +34,7 @@ FILES = {
 
     'data': lambda _sn, _name, _observe=False: 'data/data/{}{}{}.json'.format(_name, '-obs' if _observe else '', _sn),
 
-    'vdist': lambda _sn: 'data/vdist/satstats{}.fits'.format(_sn)
+    'vdist': lambda _sn: 'data/vdist/satstats{}.fits'.format(_sn),
+
+    'cone': lambda _i, _sats=None: 'cones/cone{:03}{}.fits'.format(_i, '' if _sats is None else '>0' if _sats else '=0')
 }
