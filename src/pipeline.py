@@ -190,13 +190,17 @@ class ConePipeline:
 
         return mvir, mvir_err
 
-    def __init__(self, cone, nvircen=2, nvirsat=1, dvcen=3000, dvsat=3000, binwidth=0.1, quiet=False):
+    def __init__(self, cone,
+                 nvircen=2, nvirsat=1, dvcen=3000, dvsat=3000, fM=1.0, d0=2.0,
+                 binwidth=0.1, quiet=False):
         self.cone = cone
 
         self.nvircen = nvircen
         self.nvirsat = nvirsat
         self.dvcen = dvcen
         self.dvsat = dvsat
+        self.fM = fM
+        self.d0 = d0
 
         self.binwidth = binwidth
 
@@ -213,10 +217,11 @@ class ConePipeline:
                                 'mvir', 'stellarMass', 'sfr',
                                 'z_app', 'ra', 'dec', 'd_comoving'][s]
 
-    def examine(self):
+    def examine(self, **kwargs):
         res = galocate(self.sample,
                        nvircen=self.nvircen, nvirsat=self.nvirsat,
-                       dvcen=self.dvcen, dvsat=self.dvsat)
+                       dvcen=self.dvcen, dvsat=self.dvsat,
+                       fM=self.fM, d0=self.d0)
 
         self.sample['iscen'] = res['iscen']
         self.sample['cId']   = res['fofCentralId']
@@ -226,6 +231,18 @@ class ConePipeline:
 
         self.cen, self.sats = ConePipeline.split(self.sample)
 
+    def plot(self):
+        plt.errorbar(self.res['mv'], self.res['ms'], xerr=self.res['mv_err'], linestyle='', marker='o')
+        plt.xlim(10, 15)
+        plt.ylim(7, 12)
+
+    def go(self):
+        self.create_sample()
+        self.examine()
+        self.predict()
+        return self
+
+class SWConePipeline(ConePipeline):
     def predict(self):
         g = Table()
         g['dv'] = 3e5 * self.sats['dz'] / (1 + self.sats['z'])
@@ -256,38 +273,35 @@ class ConePipeline:
 
         self.res['mv'], self.res['mv_err'] = ConePipeline.sigma2mvir(self.res['sigma'], self.res['sigma_err'])
 
-    def plot(self):
-        plt.errorbar(self.res['mv'], self.res['ms'], xerr=self.res['mv_err'], linestyle='', marker='o')
-        plt.xlim(10, 15)
-        plt.ylim(7, 12)
-
-    def go(self):
-        self.create_sample()
-        self.examine()
-        self.predict()
-        return self
+class HWConePipeline(ConePipeline):
+    def predict(self):
+        pass
 
 class ConeBootstrapper:
     cone = None
     oname = None
+    pipeline = None
+    pipelinekwargs = None
 
     @staticmethod
-    def _init(fname, oname):
+    def _init(pipeline, fname, oname, pipelinekwargs):
+        ConeBootstrapper.pipeline = pipeline
         ConeBootstrapper.cone = load(fname)
         ConeBootstrapper.oname = oname
+        ConeBootstrapper.pipelinekwargs = pipelinekwargs
 
     @staticmethod
     def _bootstrap_one(i, seed):
         np.random.seed(seed)
         print('Bootstrap', i)
-        cp = ConePipeline(ConeBootstrapper.cone, quiet=True).go()
+        cp = ConeBootstrapper.pipeline(ConeBootstrapper.cone, quiet=True, **ConeBootstrapper.pipelinekwargs).go()
         write(cp.res, ConeBootstrapper.oname.format(i))
 
     @staticmethod
-    def bootstrap(fname, oname, N, start=0, nproc=cpu_count()):
+    def bootstrap(pipeline, fname, oname, N, start=0, nproc=cpu_count(), **kwargs):
         with Pool(nproc,
                   initializer=ConeBootstrapper._init,
-                  initargs=(fname, oname)) as pool:
+                  initargs=(pipeline, fname, oname, kwargs)) as pool:
             pool.starmap(ConeBootstrapper._bootstrap_one,
                          zip(
                              range(start, start+N),
