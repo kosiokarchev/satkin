@@ -1,5 +1,6 @@
 import os
-from multiprocessing import Process, cpu_count, current_process
+from glob import glob
+from multiprocessing import Pool, cpu_count
 import numdifftools as nd
 from scipy.optimize import minimize
 from lib import *
@@ -189,7 +190,7 @@ class ConePipeline:
 
         return mvir, mvir_err
 
-    def __init__(self, cone, nvircen=2, nvirsat=1, dvcen=3000, dvsat=3000, binwidth=0.1, oname='res{}.fits', quiet=False, seed=None):
+    def __init__(self, cone, nvircen=2, nvirsat=1, dvcen=3000, dvsat=3000, binwidth=0.1, quiet=False):
         self.cone = cone
 
         self.nvircen = nvircen
@@ -199,10 +200,7 @@ class ConePipeline:
 
         self.binwidth = binwidth
 
-        self.oname = oname
-
         self.quiet = quiet
-        self.seed = seed
 
         self.sample = None
         self.cen = None
@@ -210,7 +208,6 @@ class ConePipeline:
         self.res = None
 
     def create_sample(self):
-        np.random.seed(self.seed)
         s = self.cone['p'] > np.random.random(len(self.cone))
         self.sample = self.cone['galaxyId', 'fofCentralId',
                                 'mvir', 'stellarMass', 'sfr',
@@ -268,29 +265,65 @@ class ConePipeline:
         self.create_sample()
         self.examine()
         self.predict()
+        return self
+
+class ConeBootstrapper:
+    cone = None
+    oname = None
+
+    @staticmethod
+    def _init(fname, oname):
+        ConeBootstrapper.cone = load(fname)
+        ConeBootstrapper.oname = oname
+
+    @staticmethod
+    def _bootstrap_one(i, seed):
+        np.random.seed(seed)
+        print('Bootstrap', i)
+        cp = ConePipeline(ConeBootstrapper.cone, quiet=True).go()
+        write(cp.res, ConeBootstrapper.oname.format(i))
 
     @staticmethod
     def bootstrap(fname, oname, N, start=0, nproc=cpu_count()):
-        def bootstrap_one(i, n, seed):
-            cone = load(fname)
-            ConePipeline(cone, oname=oname, quiet=True, seed=seed)._bootstrap(i, n)
-            print(current_process().name, 'has finished')
+        with Pool(nproc,
+                  initializer=ConeBootstrapper._init,
+                  initargs=(fname, oname)) as pool:
+            pool.starmap(ConeBootstrapper._bootstrap_one,
+                         zip(
+                             range(start, start+N),
+                             np.uint32(np.random.random(N)*2**32)
+                         ))
+            print('Bootstrap complete.')
 
-        n = int(np.ceil(N/nproc))
-        procs = [Process(target=bootstrap_one,
-                         args=(int(i), n,
-                               np.uint32(np.random.random()*(2**31))))
-                 for i in range(start, start+N, n)]
+    @staticmethod
+    def pack(folder, fpattern='*', binwidth=0.1, rbins=(8, 12)):
+        files = glob(os.path.join(folder, fpattern))
 
-        print('Bootstrapping using', len(procs), 'processes.')
+        ms = np.arange(rbins[0] + binwidth / 2, rbins[1], binwidth) // binwidth
 
-        for proc in procs: proc.start()
-        for proc in procs: proc.join()
+        sigma = np.full((len(ms), len(files)), np.nan)
+        sigma_err = np.full((len(ms), len(files)), np.inf)
 
-        print('Bootstrap complete.')
+        mvir = np.full((len(ms), len(files)), np.nan)
+        mvir_err = np.full((len(ms), len(files)), np.inf)
 
-    def _bootstrap(self, start, n):
-        for i in range(start, start+n):
-            print('Starting bootstrap', i)
-            self.go()
-            write(self.res, self.oname.format(i))
+        for i in range(len(files)):
+            t = load(files[i])
+            w = np.where(ms[:, np.newaxis] == (t['ms'].data // binwidth)[np.newaxis, :])
+
+            sigma[w[0], i] = t['sigma'][w[1]]
+            sigma_err[w[0], i] = t['sigma_err'][w[1]]
+
+            mvir[w[0], i] = t['mv'][w[1]]
+            mvir_err[w[0], i] = t['mv_err'][w[1]]
+
+        weight = 1 / mvir_err ** 2
+        sumw = np.sum(weight, axis=1)
+
+        mv = np.sum(weight * mvir, axis=1) / sumw
+        mv_err = np.sqrt(np.sum(weight * (mvir - mv[:, np.newaxis]) ** 2, axis=1) / sumw)
+
+        return dict(sigma=sigma, sigma_err=sigma_err,
+                    mvir=mvir, mvir_err=mvir_err,
+                    mv=mv, mv_err=mv_err,
+                    ms=ms*binwidth)
