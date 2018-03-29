@@ -31,8 +31,18 @@ def sigmar2_overvvir2_om(s, c):
 
     return f1*f2
 
-beta = beta_om
-sigmar2_overvvir2 = sigmar2_overvvir2_om
+beta0 = 0.25
+beta_const = lambda s: beta0
+def sigmar2_overvvir2_const(s, c):
+    def integrand(x):
+        cx1 = (1+c*x)
+        return x**(2*beta0 - 3) * ln(cx1) / cx1**2 \
+               - c*x**(2*beta0 - 2) / cx1**3
+
+    return g(c) * (1 + c*s)**2 * s**(1 - 2*beta0) * integrate(integrand, s, inf)[0]
+
+beta = beta_const
+sigmar2_overvvir2 = sigmar2_overvvir2_const
 
 def S2_overmvirvvir2gc(Rt, c):
     I1 = lambda s: sigmar2_overvvir2(s, c) \

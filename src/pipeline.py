@@ -217,7 +217,7 @@ class ConePipeline:
                                 'mvir', 'stellarMass', 'sfr',
                                 'z_app', 'ra', 'dec', 'd_comoving'][s]
 
-    def examine(self, **kwargs):
+    def examine(self):
         res = galocate(self.sample,
                        nvircen=self.nvircen, nvirsat=self.nvirsat,
                        dvcen=self.dvcen, dvsat=self.dvsat,
@@ -340,4 +340,4 @@ class ConeBootstrapper:
         return dict(sigma=sigma, sigma_err=sigma_err,
                     mvir=mvir, mvir_err=mvir_err,
                     mv=mv, mv_err=mv_err,
-                    ms=ms*binwidth)
+                    ms=(ms+0.5)*binwidth)
