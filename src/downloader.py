@@ -1,5 +1,5 @@
 from __future__ import print_function
-import os
+import os, sys
 from time import time, sleep
 import threading
 import math
@@ -130,7 +130,8 @@ class Downloader:
         print(bigsep)
 
     def download_one(self):
-        self.query.where = '{}>{} AND ({})'.format(self.index, self.maxindex, self.basewhere)
+        if self.basewhere:
+            self.query.where = self.query.where + ' AND ({})'.format(self.basewhere)
 
         self.file_start_time = time()
         r = self.sess.get(self.baseUrl, params={'action': 'doQuery',
@@ -141,6 +142,9 @@ class Downloader:
 
         line = next(lines)
         if not line == '#OK':
+            print(line, file=sys.stderr)
+            for l in lines:
+                print(l, file=sys.stderr)
             raise RuntimeError('Query not OK')
 
         self.nfiles += 1
