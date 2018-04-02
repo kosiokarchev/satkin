@@ -9,6 +9,7 @@ from astropy.cosmology import Planck13
 import lmfit
 from lmfit import models
 from matplotlib import pyplot as plt
+from mpl_toolkits.mplot3d import Axes3D
 
 from print_function import print
 from settings import *
@@ -47,8 +48,8 @@ def read_idl(fname, prefix=None):
     return Table([s[key] for key in names],
                  names=[k.replace(prefix+'_', '') for k in names] if prefix is not None else names)
 
-def deal(t):
-    t = t[np.where(t['stellarMass'] > 1e-4)]
+def deal(t, minms=6):
+    t = t[np.where(t['stellarMass'] > np.power(10, minms-10))]
     t['mv'] = 10 + np.log10(t['mvir'])
     t['ms'] = 10 + np.log10(t['stellarMass'])
     return t
@@ -85,13 +86,27 @@ def fit_or(model, data, outlier_func=sigma_clip, niter=3, outlier_kwargs=None, *
 
     return indices, fit_res
 
-def two_lines(x, x0, y0, a1, a2):
+def two_lines_1(x, x0, y0, a1, a2):
     res = np.full_like(x, y0)
     lower = x<x0
     res[lower] += a1*(x[lower]-x0)
     res[~lower] += a2*(x[~lower]-x0)
 
     return res
+
+
+def two_lines_2(x, x0, y0, a1, a2, scale=1):
+    da = a2-a1
+    dx = (x-x0) / scale
+    return y0 + a1*dx + da*np.log10((1 + np.power(10, dx)) / 2)
+
+
+two_lines = two_lines_2
+
+
+def ecurve(x, a=1, x0=1, b=0):
+    return np.power(10, a*(x-x0)) + b
+
 
 def cumgauss(x, sigma, A, B):
     return A * erf(x / (np.sqrt(2) * sigma)) + B * x
