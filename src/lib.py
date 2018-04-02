@@ -6,3 +6,5 @@ from data import Data
 from procedures import *
 
 from galocator import *
+
+from theory import *
