@@ -106,11 +106,10 @@ class BootstrapPoissonizer(Poissonizer):
 
         print('Bootstrap collapse: nproc={}, ntrials={}'.format(self.nproc, self.ntrials))
 
-        ntrials = 4
-        with Pool() as p:
+        with Pool(self.nproc) as p:
             g = p.starmap(self._calc_points_one,
-                          zip(range(ntrials),
-                              np.uint32(np.random.random(ntrials) * 2 ** 32)))
+                          zip(range(self.ntrials),
+                              np.uint32(np.random.random(self.ntrials) * 2**32)))
 
         self.t = (vstack(g)
                   .group_by(self.bincols + [self.axis])
