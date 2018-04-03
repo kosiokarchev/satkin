@@ -71,7 +71,7 @@ class Poissonizer:
         for g in self.m:
             mean = np.sum(g['f']*g[self.axis])
             means.append(mean)
-            medians.append(np.median(np.repeat(g[self.axis], g['n'])))
+            medians.append(g[self.axis][np.searchsorted(np.cumsum(g['f']), 0.5)])
             stdevs.append(np.sqrt(np.sum(g['f'] * (g[self.axis] - mean)**2)))
         self.m = self.m.keys
         self.m['mean'] = means
@@ -93,16 +93,6 @@ class BootstrapPoissonizer(Poissonizer):
         self.observe = observe
         self.nproc = nproc
         self.ntrials = ntrials
-
-    def observe(self):
-        sats = self.cenp[self.cenp['p'] > np.random.random(len(self.cenp))]
-        sats = sats[sats['galaxyId'] != sats['fofCentralId']]
-        sats = sats.group_by('fofCentralId')['fofCentralId', 'galaxyId'].groups.aggregate(len)
-        sats.rename_column('galaxyId', self.axis)
-
-        t = join(self.cen[['fofCentralId'] + self.bincols], sats, 'fofCentralId', 'left')
-        t[self.axis] = t[self.axis].filled(0)
-        self.t = t
 
     def _calc_points_one(self, i, seed):
         np.random.seed(seed)
