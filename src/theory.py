@@ -6,7 +6,7 @@ from astropy.table import join, vstack
 
 
 class Poissonizer:
-    def __init__(self, t, bincols, axis):
+    def __init__(self, t, bincols, axis, verbose=True):
         self.t = t
         self.m = None
         self.bincols = bincols
@@ -14,8 +14,10 @@ class Poissonizer:
 
         self.calced = self.collapsed = self.predicted = self.meaned = False
 
+        self.verbose = verbose
+
     def calc_points(self):
-        print('Getting counts')
+        self.print('Getting counts')
         self.t = self.t.group_by(self.bincols + [self.axis]).groups
         self.t.keys['n'] = self.t.indices[1:] - self.t.indices[:-1]
         self.t = self.t.keys
@@ -27,7 +29,7 @@ class Poissonizer:
         if not self.calced:
             self.calc_points()
 
-        print('Getting totals')
+        self.print('Getting totals')
         N = self.t[self.bincols + ['n']].group_by(self.bincols).groups.aggregate(np.sum)
         N.rename_column('n', 'N')
 
@@ -62,18 +64,31 @@ class Poissonizer:
         if not self.collapsed:
             self.collapse()
 
-        self.m = self.t.group_by(self.bincols)
-        self.m.groups.keys['mean'] = self.m[self.axis].groups.aggregate(np.mean)
-        self.m.groups.keys['stdev'] = self.m[self.axis].groups.aggregate(np.std)
-        self.m = self.m.groups.keys
+        self.m = self.t.group_by(self.bincols).groups
+        means = []
+        medians = []
+        stdevs = []
+        for g in self.m:
+            mean = np.sum(g['f']*g[self.axis])
+            means.append(mean)
+            medians.append(np.median(np.repeat(g[self.axis], g['n'])))
+            stdevs.append(np.sqrt(np.sum(g['f'] * (g[self.axis] - mean)**2)))
+        self.m = self.m.keys
+        self.m['mean'] = means
+        self.m['median'] = medians
+        self.m['stdev'] = stdevs
 
         self.meaned = True
         return self
 
+    def print(self, msg):
+        if self.verbose:
+            print(msg)
+
 
 class BootstrapPoissonizer(Poissonizer):
     def __init__(self, observe, bincols, axis, nproc=None, ntrials=10):
-        super(BootstrapPoissonizer, self).__init__(None, bincols, axis)
+        super(BootstrapPoissonizer, self).__init__(None, bincols, axis, False)
 
         self.observe = observe
         self.nproc = nproc
