@@ -72,11 +72,10 @@ class Poissonizer:
 
 
 class BootstrapPoissonizer(Poissonizer):
-    def __init__(self, cen, cenp, bincols, axis, nproc=None, ntrials=10):
+    def __init__(self, observe, bincols, axis, nproc=None, ntrials=10):
         super(BootstrapPoissonizer, self).__init__(None, bincols, axis)
-        self.cen = cen
-        self.cenp = cenp
 
+        self.observe = observe
         self.nproc = nproc
         self.ntrials = ntrials
 
@@ -93,7 +92,8 @@ class BootstrapPoissonizer(Poissonizer):
     def _calc_points_one(self, i, seed):
         np.random.seed(seed)
         print('=' * 32, 'BOOTSTRAP {:0>4}'.format(i), '=' * 32)
-        self.observe()
+
+        self.t = self.observe()
         super(BootstrapPoissonizer, self).calc_points()
         return self.t
 
@@ -102,8 +102,10 @@ class BootstrapPoissonizer(Poissonizer):
 
         with Pool(self.nproc) as p:
             g = p.starmap(self._calc_points_one,
-                          zip(range(self.ntrials),
-                              np.uint32(np.random.random(self.ntrials) * 2**32)))
+                          tuple(zip(
+                              range(self.ntrials),
+                              np.uint32(np.random.random(self.ntrials) * 2**32))
+                          ))
 
         print('Bootstrap complete. Stacking', len(g), 'tables...')
         self.t = (vstack(g)
