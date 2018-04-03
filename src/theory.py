@@ -80,8 +80,6 @@ class BootstrapPoissonizer(Poissonizer):
         self.nproc = nproc
         self.ntrials = ntrials
 
-        self.observed = False
-
     def observe(self):
         sats = self.cenp[self.cenp['p'] > np.random.random(len(self.cenp))]
         sats = sats[sats['galaxyId'] != sats['fofCentralId']]
@@ -92,25 +90,22 @@ class BootstrapPoissonizer(Poissonizer):
         t[self.axis] = t[self.axis].filled(0)
         self.t = t
 
-        self.observed = True
-
     def _calc_points_one(self, i, seed):
         np.random.seed(seed)
         print('=' * 32, 'BOOTSTRAP {:0>4}'.format(i), '=' * 32)
+        self.observe()
         super(BootstrapPoissonizer, self).calc_points()
         return self.t
 
     def calc_points(self):
-        if not self.observed:
-            self.observe()
-
-        print('Bootstrap collapse: nproc={}, ntrials={}'.format(self.nproc, self.ntrials))
+        print('Bootstrap: nproc={}, ntrials={}'.format(self.nproc, self.ntrials))
 
         with Pool(self.nproc) as p:
             g = p.starmap(self._calc_points_one,
                           zip(range(self.ntrials),
                               np.uint32(np.random.random(self.ntrials) * 2**32)))
 
+        print('Bootstrap complete. Stacking', len(g), 'tables...')
         self.t = (vstack(g)
                   .group_by(self.bincols + [self.axis])
                   .groups.aggregate(np.sum))
