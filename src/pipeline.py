@@ -192,7 +192,7 @@ class ConePipeline:
 
     def __init__(self, cone,
                  nvircen=2, nvirsat=1, dvcen=3000, dvsat=3000, fM=1.0, d0=2.0,
-                 binwidth=0.1, quiet=False):
+                 binwidth=0.1, sampler='all', quiet=False):
         self.cone = cone
 
         self.nvircen = nvircen
@@ -204,6 +204,14 @@ class ConePipeline:
 
         self.binwidth = binwidth
 
+        if sampler in self.samplers:
+            self.sampler = self.samplers[sampler]
+        elif callable(sampler):
+            self.sampler = sampler
+        else:
+            raise ValueError('sampler should be a callable or one of {}'.format(list(self.samplers.keys())))
+
+
         self.quiet = quiet
 
         self.sample = None
@@ -211,11 +219,16 @@ class ConePipeline:
         self.sats = None
         self.res = None
 
+    samplers = {
+        'all': lambda cone: np.full(len(cone), True),
+        'observe': lambda cone: cone['p'] > np.random.random(len(cone)),
+        'bootstrap': lambda cone: (np.random.random(len(cone))*len(cone)).astype(int)
+    }
     def create_sample(self):
-        s = self.cone['p'] > np.random.random(len(self.cone))
-        self.sample = self.cone['galaxyId', 'fofCentralId',
-                                'mvir', 'stellarMass', 'sfr',
-                                'z_app', 'ra', 'dec', 'd_comoving'][s]
+        self.sample = self.cone[
+            'galaxyId', 'stellarMass',
+            'z_app', 'ra', 'dec', 'd_comoving'
+        ][self.sampler(self.cone)]
 
     def examine(self):
         res = galocate(self.sample,
@@ -230,6 +243,9 @@ class ConePipeline:
                                               res['fofCentralId'])
 
         self.cen, self.sats = ConePipeline.split(self.sample)
+
+    def predict(self):
+        raise NotImplementedError
 
     def plot(self):
         plt.errorbar(self.res['mv'], self.res['ms'], xerr=self.res['mv_err'], linestyle='', marker='o')
