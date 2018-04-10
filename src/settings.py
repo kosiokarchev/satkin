@@ -36,5 +36,7 @@ FILES = {
 
     'vdist': lambda _sn: 'data/vdist/satstats{}.fits'.format(_sn),
 
-    'cone': lambda _i, _sats=None: 'cones/cone{:03}{}.fits'.format(_i, '' if _sats is None else '>0' if _sats else '=0')
+    'cone': lambda _i=1, _sats=None: 'cones/cone{:03}{}.fits'.format(_i, '' if _sats is None else '>0' if _sats else '=0'),
+    'hst': '3d-hst/3d-hst.fits',
+    'hst-sw': '3d-hst/theplot-sw.fits'
 }
