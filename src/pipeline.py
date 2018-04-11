@@ -245,22 +245,8 @@ class ConePipeline:
         self.cen, self.sats = ConePipeline.split(self.sample)
 
     def predict(self):
-        raise NotImplementedError
-
-    def plot(self):
-        plt.errorbar(self.res['mv'], self.res['ms'], xerr=self.res['mv_err'], linestyle='', marker='o')
-        plt.xlim(10, 15)
-        plt.ylim(7, 12)
-
-    def go(self):
-        self.create_sample()
-        self.examine()
-        self.predict()
-        return self
-
-class SWConePipeline(ConePipeline):
-    def predict(self):
         g = Table()
+        g['fofCentralId'] = self.sats['fofCentralId']
         g['dv'] = 3e5 * self.sats['dz'] / (1 + self.sats['z'])
         g['ms'] = 10 + np.log10(self.sats['stellarMass'])
         g['bin'] = g['ms'] // self.binwidth
@@ -280,28 +266,50 @@ class SWConePipeline(ConePipeline):
             ms.append((g.groups.keys['bin'][i] + 0.5) * self.binwidth)
             if not self.quiet:
                 print('ms={:.2f} [{}:{}] / {}'.format(ms[-1], start, end, len(g)))
-            dv = g['dv'][start:end]
-            res = ConePipeline.fit_cumgauss(dv)
-            sigma.append(res[0][0])
-            sigma_err.append(res[1][0])
+
+
+            b = g['fofCentralId', 'dv'][start:end]
+            popt, errs = self.fit_cumgauss(b['dv'])
+            if not np.isfinite(errs[0]):
+                sigma.append((popt[0], popt[0]))
+                sigma_err.append((np.inf, np.inf))
+            else:
+                s, A, B = popt
+                a = A / (np.sqrt(2*np.pi) * s)
+                k = B / 2
+                f = a * np.exp(-b['dv'] ** 2 / (2 * s**2))
+                b['f'] = f / (k + f)
+
+                counts = b['fofCentralId', 'f'].group_by('fofCentralId').groups.aggregate(np.sum)
+                counts.rename_column('f', 'n')
+                b = join(b, counts, 'fofCentralId')
+
+                sigma.append((s, np.sqrt(np.sum(b['f'] * b['n']*b['dv']**2) / np.sum(b['n']))))
+                sigma_err.append((errs[0], 1))
 
         self.res = Table(dict(ms=ms, sigma=sigma, sigma_err=sigma_err))
 
         self.res['mv'], self.res['mv_err'] = ConePipeline.sigma2mvir(self.res['sigma'], self.res['sigma_err'])
 
-class HWConePipeline(ConePipeline):
-    def predict(self):
-        pass
+    def plot(self):
+        plt.errorbar(self.res['mv'], self.res['ms'], xerr=self.res['mv_err'], linestyle='', marker='o')
+        plt.xlim(10, 15)
+        plt.ylim(7, 12)
+
+    def go(self):
+        self.create_sample()
+        self.examine()
+        self.predict()
+        return self
+
 
 class ConeBootstrapper:
     cone = None
     oname = None
-    pipeline = None
     pipelinekwargs = None
 
     @staticmethod
-    def _init(pipeline, fname, oname, pipelinekwargs):
-        ConeBootstrapper.pipeline = pipeline
+    def _init(fname, oname, pipelinekwargs):
         ConeBootstrapper.cone = load(fname)
         ConeBootstrapper.oname = oname
         ConeBootstrapper.pipelinekwargs = pipelinekwargs
@@ -310,14 +318,14 @@ class ConeBootstrapper:
     def _bootstrap_one(i, seed):
         np.random.seed(seed)
         print('Bootstrap', i)
-        cp = ConeBootstrapper.pipeline(ConeBootstrapper.cone, quiet=True, **ConeBootstrapper.pipelinekwargs).go()
+        cp = ConePipeline(ConeBootstrapper.cone, quiet=True, **ConeBootstrapper.pipelinekwargs).go()
         write(cp.res, ConeBootstrapper.oname.format(i))
 
     @staticmethod
-    def bootstrap(pipeline, fname, oname, N, start=0, nproc=cpu_count(), **kwargs):
+    def bootstrap(fname, oname, N, start=0, nproc=cpu_count(), **kwargs):
         with Pool(nproc,
                   initializer=ConeBootstrapper._init,
-                  initargs=(pipeline, fname, oname, kwargs)) as pool:
+                  initargs=(fname, oname, kwargs)) as pool:
             pool.starmap(ConeBootstrapper._bootstrap_one,
                          zip(
                              range(start, start+N),
@@ -331,27 +339,28 @@ class ConeBootstrapper:
 
         ms = np.arange(rbins[0] + binwidth / 2, rbins[1], binwidth) // binwidth
 
-        sigma = np.full((len(ms), len(files)), np.nan)
-        sigma_err = np.full((len(ms), len(files)), np.inf)
+        shape = (len(files), len(ms), 2)
+        sigma = np.full(shape, np.nan)
+        sigma_err = np.full(shape, np.inf)
 
-        mvir = np.full((len(ms), len(files)), np.nan)
-        mvir_err = np.full((len(ms), len(files)), np.inf)
+        mvir = np.full(shape, np.nan)
+        mvir_err = np.full(shape, np.inf)
 
         for i in range(len(files)):
             t = load(files[i])
             w = np.where(ms[:, np.newaxis] == (t['ms'].data // binwidth)[np.newaxis, :])
 
-            sigma[w[0], i] = t['sigma'][w[1]]
-            sigma_err[w[0], i] = t['sigma_err'][w[1]]
+            sigma[i, w[0]] = t['sigma'][w[1]]
+            sigma_err[i, w[0]] = t['sigma_err'][w[1]]
 
-            mvir[w[0], i] = t['mv'][w[1]]
-            mvir_err[w[0], i] = t['mv_err'][w[1]]
+            mvir[i, w[0]] = t['mv'][w[1]]
+            mvir_err[i, w[0]] = t['mv_err'][w[1]]
 
         weight = 1 / mvir_err ** 2
-        sumw = np.sum(weight, axis=1)
+        sumw = np.nansum(weight, axis=0)
 
-        mv = np.sum(weight * mvir, axis=1) / sumw
-        mv_err = np.sqrt(np.sum(weight * (mvir - mv[:, np.newaxis]) ** 2, axis=1) / sumw)
+        mv = np.nansum(weight * mvir, axis=0) / sumw
+        mv_err = np.sqrt(np.sum(weight * (mvir - mv[np.newaxis, :]) ** 2, axis=0) / sumw)
 
         return dict(sigma=sigma, sigma_err=sigma_err,
                     mvir=mvir, mvir_err=mvir_err,
