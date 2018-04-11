@@ -49,7 +49,7 @@ def read_idl(fname, prefix=None):
                  names=[k.replace(prefix+'_', '') for k in names] if prefix is not None else names)
 
 def deal(t, minms=6):
-    t = t[np.where(t['stellarMass'] > np.power(10, minms-10))]
+    t = t[np.where(t['stellarMass'] > np.power(10., minms-10))]
     t['mv'] = 10 + np.log10(t['mvir'])
     t['ms'] = 10 + np.log10(t['stellarMass'])
     return t
@@ -110,6 +110,14 @@ def ecurve(x, a=1, x0=1, b=0):
 
 def cumgauss(x, sigma, A, B):
     return A * erf(x / (np.sqrt(2) * sigma)) + B * x
+
+def schechter_func(x, a, x0, b, c):
+    dx = x - x0
+    return c + (a+1) * dx - np.power(10, b*dx) / np.log(10)
+class SchechterModel(lmfit.model.Model):
+    def __init__(self, **kws):
+        super(SchechterModel, self).__init__(schechter_func, **kws)
+        self.name = 'Schechter'
 
 from conversions import s2h, mvir2c
 
