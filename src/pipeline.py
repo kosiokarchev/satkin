@@ -256,6 +256,7 @@ class ConePipeline:
         ms = []
         sigma = []
         sigma_err = []
+        N = []
         for i in range(len(g.groups.indices)-1):
             start = g.groups.indices[i]
             end = g.groups.indices[i+1]
@@ -286,8 +287,9 @@ class ConePipeline:
 
                 sigma.append((s, np.sqrt(np.sum(b['f'] * b['n']*b['dv']**2) / np.sum(b['n']))))
                 sigma_err.append((errs[0], 1))
+                N.append(counts['n'].mean())
 
-        self.res = Table(dict(ms=ms, sigma=sigma, sigma_err=sigma_err))
+        self.res = Table(dict(ms=ms, sigma=sigma, sigma_err=sigma_err, N=N))
 
         self.res['mv'], self.res['mv_err'] = ConePipeline.sigma2mvir(self.res['sigma'], self.res['sigma_err'])
 
@@ -343,6 +345,8 @@ class ConeBootstrapper:
         sigma = np.full(shape, np.nan)
         sigma_err = np.full(shape, np.inf)
 
+        N = np.full(shape, np.nan)
+
         mvir = np.full(shape, np.nan)
         mvir_err = np.full(shape, np.inf)
 
@@ -353,6 +357,8 @@ class ConeBootstrapper:
             sigma[i, w[0]] = t['sigma'][w[1]]
             sigma_err[i, w[0]] = t['sigma_err'][w[1]]
 
+            N[i, w[0]] = t['N'][w[1]]
+
             mvir[i, w[0]] = t['mv'][w[1]]
             mvir_err[i, w[0]] = t['mv_err'][w[1]]
 
@@ -362,7 +368,7 @@ class ConeBootstrapper:
         mv = np.nansum(weight * mvir, axis=0) / sumw
         mv_err = np.sqrt(np.sum(weight * (mvir - mv[np.newaxis, :]) ** 2, axis=0) / sumw)
 
-        return dict(sigma=sigma, sigma_err=sigma_err,
+        return dict(sigma=sigma, sigma_err=sigma_err, N=N,
                     mvir=mvir, mvir_err=mvir_err,
                     mv=mv, mv_err=mv_err,
                     ms=(ms+0.5)*binwidth)
