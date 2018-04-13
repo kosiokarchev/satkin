@@ -282,13 +282,15 @@ class ConePipeline:
                 f = a * np.exp(-b['dv'] ** 2 / (2 * s**2))
                 b['f'] = f / (k + f)
 
-                counts = b['fofCentralId', 'f'].group_by('fofCentralId').groups.aggregate(np.sum)
+                counts = b['fofCentralId', 'f'].group_by('fofCentralId').groups.aggregate(np.nansum)
                 counts.rename_column('f', 'n')
                 b = join(b, counts, 'fofCentralId')
 
-                sigma.append((s, np.sqrt(np.sum(b['f'] * b['n']*b['dv']**2) / np.sum(b['n']))))
+                sigma.append((s,
+                              np.sqrt(np.nansum(b['f'] * b['n'] * b['dv']**2)
+                                      / np.nansum(b['n']))))
                 sigma_err.append((errs[0], 1))
-                N.append(counts['n'].mean())
+                N.append(np.nanmean(counts['n']))
 
         self.res = Table(dict(ms=ms, sigma=sigma, sigma_err=sigma_err, N=N))
 
