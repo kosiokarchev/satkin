@@ -346,7 +346,7 @@ class ConeBootstrapper:
         sigma = np.full(shape, np.nan)
         sigma_err = np.full(shape, np.inf)
 
-        N = np.full(shape, np.nan)
+        N = np.full(shape[:-1], np.nan)
 
         mvir = np.full(shape, np.nan)
         mvir_err = np.full(shape, np.inf)
