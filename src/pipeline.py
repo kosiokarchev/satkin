@@ -274,6 +274,7 @@ class ConePipeline:
             if not np.isfinite(errs[0]):
                 sigma.append((popt[0], popt[0]))
                 sigma_err.append((np.inf, np.inf))
+                N.append(np.nan)
             else:
                 s, A, B = popt
                 a = A / (np.sqrt(2*np.pi) * s)
