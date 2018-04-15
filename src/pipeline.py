@@ -290,7 +290,7 @@ class ConePipeline:
                 counts = counts.keys
                 # counts = b['fofCentralId', 'f'].group_by('fofCentralId').groups.aggregate(np.nansum)
                 # counts.rename_column('f', 'n')
-                # b = join(b, counts, 'fofCentralId')
+                b = join(b, counts, 'fofCentralId')
 
                 (shw, Ahw, Bhw), ehw = self.fit_cumgauss(b['dv'], b['f'] / b['n'])
                 if not np.isfinite(ehw[0]):
