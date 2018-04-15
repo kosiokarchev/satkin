@@ -272,7 +272,7 @@ class ConePipeline:
             b = g['fofCentralId', 'dv'][start:end]
             popt, errs = self.fit_cumgauss(b['dv'])
             if not np.isfinite(errs[0]):
-                sigma.append((popt[0], popt[0]))
+                sigma.append((np.nan, np.nan))
                 sigma_err.append((np.inf, np.inf))
                 N.append(np.nan)
             else:
@@ -286,9 +286,10 @@ class ConePipeline:
                 counts.rename_column('f', 'n')
                 b = join(b, counts, 'fofCentralId')
 
-                sigma.append((s,
-                              np.sqrt(np.nansum(b['f'] * b['n'] * b['dv']**2)
-                                      / np.nansum(b['n']))))
+                w = b['f'] / b['n']
+                shw = np.sqrt(np.nansum(w * b['dv']**2)
+                              / np.nansum(w))
+                sigma.append((s, shw))
                 sigma_err.append((errs[0], 1))
                 N.append(np.nanmean(counts['n']))
 
