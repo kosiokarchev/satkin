@@ -1,5 +1,5 @@
+import json
 import numpy as np
-from scipy.integrate import quad
 from scipy.interpolate import RegularGridInterpolator as interpnd
 import lmfit
 
@@ -28,6 +28,12 @@ def load_parameters(fname):
     with open(fname, 'r') as f:
         p.load(f)
     return p
+def load_last_params(fname):
+    with open(fname) as f:
+        p = json.load(f)
+    return lmfit.Parameters().loads(json.dumps(p[-1]))
+def extract_params(prefix, params, includeexpr=False):
+    return {key[len(prefix):]: params[key].value for key in params if key.startswith(prefix) and (includeexpr or not params[key].expr)}
 
 class ThePlot:
     @staticmethod
@@ -46,8 +52,8 @@ class ThePlot:
         self.f_mv = self.f_mv_t
 
     @staticmethod
-    def N(mv, a, N_12, p, f):
-        return np.power(10, a * (mv - 12) + N_12)
+    def N(mv, a, N_N12, p, f):
+        return np.power(10, a * (mv - 12) + N_N12)
 
     @staticmethod
     def sigma2(mv):
@@ -58,41 +64,42 @@ class ThePlot:
         return two_lines_2(mv, mv0, ms0, a1, a2, scale)
 
     @staticmethod
-    def spread(mv, a, spread_12):
-        return a * (mv - 12) + spread_12
+    def spread(mv, a, s12):
+        return a * (mv - 12) + s12
 
-    def G(self, mv, ms, mms_mv0, mms_ms0, mms_a1, mms_a2, mms_scale, spread_a,
-          spread_12):
-        s = self.spread(mv, spread_a, spread_12)
+    def G(self, mv, ms, mms_mv0, mms_ms0, mms_a1, mms_a2, mms_scale, spread_a, spread_s12):
+        s = self.spread(mv, spread_a, spread_s12)
         mms = self.mean_ms(mv, mms_mv0, mms_ms0, mms_a1, mms_a2, mms_scale)
         return np.exp(- (ms - mms) ** 2 / (2 * s ** 2)) / (
                     np.sqrt(2 * np.pi) * s)
 
     def theplot(self, mv, ms,
                 mms_mv0, mms_ms0, mms_a1, mms_a2, mms_scale,
-                spread_a, spread_12,
+                spread_a, spread_s12,
                 f_a, f_x0, f_b, f_cutoff):
         mv = mv.reshape((-1, 1))
         ms = ms.reshape((1, -1))
         ret = (self.f_mv(mv, f_a, f_x0, f_b, f_cutoff)
                * self.G(mv, ms,
                         mms_mv0, mms_ms0, mms_a1, mms_a2, mms_scale,
-                        spread_a, spread_12))
+                        spread_a, spread_s12))
         return ret / ret.sum() / (mv[1, 0] - mv[0, 0]) / (ms[0, 1] - ms[0, 0])
 
     def observables(self, out, mv, s2, ms,
                     mms_mv0, mms_ms0, mms_a1, mms_a2, mms_scale,
-                    spread_a, spread_12,
+                    spread_a, spread_s12,
                     f_a, f_x0, f_b, f_cutoff,
-                    N_a, N_12):
+                    N_a, N_N12):
         mv = mv.reshape((-1, 1))
         ms = ms.reshape((1, -1))
 
         f = self.f_mv(mv, f_a, f_x0, f_b, f_cutoff)
         p = f * self.G(mv, ms,
                        mms_mv0, mms_ms0, mms_a1, mms_a2, mms_scale,
-                       spread_a, spread_12)
-        N = self.N(mv, N_a, N_12, p, f)
+                       spread_a, spread_s12)
+        N = self.N(mv, N_a, N_N12, p, f)
+
+        pnorm = np.nansum(p, axis=0)
 
         pN = p * N
         pNnorm = np.nansum(pN, axis=0)
@@ -103,107 +110,10 @@ class ThePlot:
         out[0, :] = np.nansum(pN * s2, axis=0) / pNnorm
         out[1, :] = np.nansum(pP * s2, axis=0) / pPnorm
         out[2, :] = pNnorm / pPnorm
+        # out[2, :] = np.nansum(p * N / (1 - np.exp(-N)), axis=0) / pnorm
 
         out[np.isnan(out)] = 0
         return out
-
-
-# class ThePlot:
-#     @staticmethod
-#     def f_mv_v(mv, a, x0, b, cutoff):
-#         s = np.power(10, schechter_func(mv, a, x0, b, 0))
-#         # s /= quad(lambda x: np.power(10, schechter_func(x, a, x0, b, 0)),
-#         #           cutoff, np.inf)[0]
-#         # s[~np.isfinite(s)] = 0
-#         return np.where(mv < cutoff, 0, s)
-#
-#     _cache_fmv = None
-#     @classmethod
-#     def f_mv_t(cls, mv, a, x0, b, cutoff):
-#         return cls._cache_fmv
-#
-#     f_mv = f_mv_v
-#
-#     @classmethod
-#     def set_f_mv(cls, mv, a, x0, b, cutoff, *args, **kwargs):
-#         cls._cache_fmv = cls.f_mv(mv, a, x0, b, cutoff)[:, np.newaxis]
-#         cls.f_mv = cls.f_mv_t
-#
-#     @staticmethod
-#     def N(mv, a, N_12, p):
-#         return np.power(10, a * (mv-12) + N_12)
-#
-#     @staticmethod
-#     def sigma2(mv):
-#         return np.power(10, fits['sigma2(mv)'].eval(x=mv))
-#
-#     @staticmethod
-#     def mean_ms(mv, mv0, ms0, a1, a2, scale):
-#         return two_lines_2(mv, mv0, ms0, a1, a2, scale)
-#
-#     @staticmethod
-#     def spread(mv, a, spread_12):
-#         return a * (mv-12) + spread_12
-#
-#     @classmethod
-#     def G(cls, mv, ms, mms_mv0, mms_ms0, mms_a1, mms_a2, mms_scale, spread_a, spread_12):
-#         s = cls.spread(mv, spread_a, spread_12)
-#         mms = cls.mean_ms(mv, mms_mv0, mms_ms0, mms_a1, mms_a2, mms_scale)
-#         return np.exp(- (ms - mms) ** 2 / (2 * s ** 2)) / (np.sqrt(2 * np.pi) * s)
-#
-#     @classmethod
-#     def theplot(cls, mv, ms,
-#                 mms_mv0, mms_ms0, mms_a1, mms_a2, mms_scale,
-#                 spread_a, spread_12,
-#                 f_a, f_x0, f_b, f_cutoff):
-#         if len(mv.shape) == 1:
-#             mv = mv[:, np.newaxis]
-#         if len(ms.shape) == 1:
-#             ms = ms[np.newaxis, :]
-#         ret = (cls.f_mv(mv, f_a, f_x0, f_b, f_cutoff)
-#                * cls.G(mv, ms,
-#                        mms_mv0, mms_ms0, mms_a1, mms_a2, mms_scale,
-#                        spread_a, spread_12))
-#         return ret / ret.sum() / (mv[1, 0] - mv[0, 0]) / (ms[0, 1] - ms[0, 0])
-#
-#     @classmethod
-#     def sigmas2(cls, out, mv, s2, ms,
-#                 mms_mv0, mms_ms0, mms_a1, mms_a2, mms_scale,
-#                 spread_a, spread_12,
-#                 f_a, f_x0, f_b, f_cutoff,
-#                 N_a, N_12):
-#         p = cls.theplot(mv, ms,
-#                         mms_mv0, mms_ms0, mms_a1, mms_a2, mms_scale, spread_a, spread_12,
-#                         f_a, f_x0, f_b, f_cutoff)
-#
-#         pN = p * cls.N(mv, N_a, N_12)
-#         out[0, :] = (pN * s2).sum(axis=0) / pN.sum(axis=0)
-#         out[1, :] = (p * s2).sum(axis=0) / p.sum(axis=0)
-#
-#         out[np.isnan(out)] = 0
-#
-#         return out
-#
-#     @classmethod
-#     def observables(cls, out, mv, s2, ms,
-#                     mms_mv0, mms_ms0, mms_a1, mms_a2, mms_scale,
-#                     spread_a, spread_12,
-#                     f_a, f_x0, f_b, f_cutoff,
-#                     N_a, N_12):
-#         p = cls.theplot(mv, ms,
-#                         mms_mv0, mms_ms0, mms_a1, mms_a2, mms_scale, spread_a,
-#                         spread_12,
-#                         f_a, f_x0, f_b, f_cutoff)
-#         pnorm = p.sum(axis=0)
-#         pN = p * cls.N(mv, N_a, N_12)
-#         pNnorm = pN.sum(axis=0)
-#
-#         out[0, :] = (pN * s2).sum(axis=0) / pNnorm
-#         out[1, :] = (p * s2).sum(axis=0) / pnorm
-#         out[2, :] = pNnorm / pnorm
-#
-#         out[np.isnan(out)] = 0
-#         return out
 
 
 class ObservedThePlot(ThePlot):
@@ -218,8 +128,16 @@ class ObservedThePlot(ThePlot):
                        po_ms_z, bounds_error=False, fill_value=0)
 
     def __init__(self, z, ms):
+        self.dms = ms[1] - ms[0]
         self.z = z
         self.po_ms = self.po_ms_i(np.array((ms, [self.z] * len(ms))).T)
+
+    def G(self, *args, **kwargs):
+        G = super(ObservedThePlot, self).G(*args, **kwargs)
+        G *= self.po_ms[np.newaxis, :]
+        G /= np.nansum(G, axis=1, keepdims=True)
+        G /= self.dms
+        return G
 
     @classmethod
     def p_mv0_mv(cls, mv, f_mv):
@@ -237,8 +155,8 @@ class ObservedThePlot(ThePlot):
               * self.po_ms[np.newaxis, np.newaxis, :])
         return np.nansum(fn, axis=(1, 2)).reshape(mv.shape)
 
-    def N(self, mv, a, N_12, p, f):
-        return self.fn(mv, p, f) * super(ObservedThePlot, self).N(mv, a, N_12, p, f)
+    def N(self, mv, a, N_N12, p, f):
+        return self.fn(mv, p, f) * super(ObservedThePlot, self).N(mv, a, N_N12, p, f)
 
 
 class ThePlotModel:
@@ -247,21 +165,21 @@ class ThePlotModel:
     p_init.add('mms_ms0', 10, min=7, max=12, brute_step=0.1)    # 50
     p_init.add('mms_a1', 2, min=0, max=5, brute_step=0.1)       # 50
     p_init.add('mms_a2', 0.3, min=0, max=5, brute_step=0.1)     # 50
-    p_init.add('mms_scale', 1, min=0, max=5)
+    p_init.add('mms_scale', 1, min=0, max=5, vary=False)
     p_init.add('spread_a', 0, vary=False)
-    p_init.add('spread_12', 0.2, min=0, max=2, brute_step=0.1)  # 20
+    p_init.add('spread_s12', 0.2, min=0, max=2, brute_step=0.1)  # 20
 
-    p_init.add('f_a', -1.9, min=-5, max=-1, vary=False, brute_step=0.1)     # 40
-    p_init.add('f_x0', 13.4, vary=False)
-    p_init.add('f_b', 0.65, min=0, max=5, vary=False)
-    p_init.add('f_cutoff', 10.5, vary=False)
+    p_init.add('f_a', -1.9, min=-5, max=-1, brute_step=0.1)     # 40
+    p_init.add('f_x0', 13.4)
+    p_init.add('f_b', 0.65, min=0, max=5)
+    p_init.add('f_cutoff', 10.5)
 
     p_init.add('slope_1', p_init['mms_a1'] / p_init['mms_scale'], expr='mms_a1 / mms_scale', max=5)
     p_init.add('slope_2', p_init['mms_a1'] / p_init['mms_scale'], expr='mms_a2 / mms_scale', max=2)
-    p_init.add('spread_low', p_init['spread_a'] * (9-12) + p_init['spread_12'],
-               expr='spread_a * (9-12) + spread_12', min=0)
-    p_init.add('spread_high', p_init['spread_a'] * (15-12) + p_init['spread_12'],
-               expr='spread_a * (15-12) + spread_12', min=0)
+    p_init.add('spread_low', p_init['spread_a'] * (9-12) + p_init['spread_s12'],
+               expr='spread_a * (9-12) + spread_s12', min=0)
+    p_init.add('spread_high', p_init['spread_a'] * (15-12) + p_init['spread_s12'],
+               expr='spread_a * (15-12) + spread_s12', min=0)
 
     params_names = []
     for p in p_init.keys():
@@ -316,7 +234,7 @@ class ThePlotModel:
 class ThePlotSigmasModel(ThePlotModel):
     p_init = ThePlotModel.p_init.copy()
     p_init.add('N_a', 0.9, min=0, max=5, brute_step=0.1)  #50
-    p_init.add('N_12', 0, min=-2, max=2, brute_step=0.1, vary=False)  #20
+    p_init.add('N_N12', 0, min=-2, max=2, brute_step=0.1, vary=False)  #20
     p_init.add('fNo', 0.6, min=0, max=1, brute_step=0.1)  #10
 
     params_names = []
@@ -337,17 +255,17 @@ class ThePlotSigmasModel(ThePlotModel):
 
     def func(self, ms,
              mms_mv0, mms_ms0, mms_a1, mms_a2, mms_scale,
-             spread_a, spread_12,
+             spread_a, spread_s12,
              f_a, f_x0, f_b, f_cutoff,
-             N_a, N_12, fNo):
+             N_a, N_N12, fNo):
         if self.y is None or self.y.shape[1] != len(ms):
             self.y = np.empty((3, len(ms)))
         self.tpc.observables(self.y, self.mv, self.s2,
                              ms[np.newaxis, :],
                              mms_mv0, mms_ms0, mms_a1, mms_a2, mms_scale,
-                             spread_a, spread_12,
+                             spread_a, spread_s12,
                              f_a, f_x0, f_b, f_cutoff,
-                             N_a, N_12)
+                             N_a, N_N12)
         self.y[2] *= fNo
         return self.y
 
@@ -393,31 +311,31 @@ class FitIterCallback:
         self.paramfig.canvas.draw()
 
     def plot_resid(self, resid, i=0):
-        print(resid)
         self.residax.plot(i, resid, '.')
         self.residfig.canvas.draw()
 
-    def plot_plot(self, r):
+    def plot_plot(self, r, params):
         if self.fitlines:
             for fl in self.fitlines:
-                if fl in fl.axes.lines:
-                    fl.axes.lines.remove(fl)
-        self.fitlines = self.plotter(r)
+                try:
+                    fl.remove()
+                except:
+                    pass
+        self.fitlines = self.plotter(r, params)
         self.plotfig.canvas.draw()
 
-    def __call__(self, params, iter, resid, *args, **kws):
-        print('='*10, iter, '='*10)
-
+    def __call__(self, params, i, resid, *args, **kws):
         self.resids.append(np.sum(resid**2))
         self.params.append(params)
 
+        print(i, ':', self.resids[-1])
         if self.saveparams:
             with open(self.saveparams, 'w') as f:
                f.write('[' + ', '.join([p.dumps() for p in self.params]) + ']')
-
         if self.doparams:
-            self.plot_params(params, iter)
+            self.plot_params(params, i)
         if self.doresid:
-            self.plot_resid(self.resids[-1], iter)
-        self.plot_plot(resid)
+            self.plot_resid(self.resids[-1], i)
+
+        self.plot_plot(resid, params)
         plt.pause(0.01)
