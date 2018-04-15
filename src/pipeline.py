@@ -285,22 +285,27 @@ class ConePipeline:
                 # print(ftrue)
 
                 subb = b[np.abs(b['dv']) < 3*np.abs(s)]
-                counts = subb.group_by('fofCentralId').groups
-                counts.keys['n'] = counts.indices[1:] - counts.indices[:-1]
-                counts = counts.keys
+                if len(subb) > 0:
+                    counts = subb.group_by('fofCentralId').groups
+                    counts.keys['n'] = counts.indices[1:] - counts.indices[:-1]
+                    counts = counts.keys
 
-                # counts = subb['fofCentralId', 'f'].group_by('fofCentralId').groups.aggregate(np.nansum)
-                # counts.rename_column('f', 'n')
-                subb = join(subb, counts, 'fofCentralId')
+                    # counts = subb['fofCentralId', 'f'].group_by('fofCentralId').groups.aggregate(np.nansum)
+                    # counts.rename_column('f', 'n')
+                    subb = join(subb, counts, 'fofCentralId')
 
-                w = 1 / subb['n']
-                # # subb = b[b['n'] > 1/ftrue]
-                # w = subb['f'] / subb['n']
-                shw = np.sqrt(np.nansum(w * subb['dv']**2) / np.nansum(w))
+                    w = 1 / subb['n']
+                    # # subb = b[b['n'] > 1/ftrue]
+                    # w = subb['f'] / subb['n']
+                    shw = np.sqrt(np.nansum(w * subb['dv']**2) / np.nansum(w))
+                    n = np.nanmean(counts['n'])
+                else:
+                    shw = np.nan
+                    n = np.nan
 
                 sigma.append((s, shw))
                 sigma_err.append((errs[0], 1))
-                N.append(np.nanmean(counts['n']))
+                N.append(n)
 
         self.res = Table(dict(ms=ms, sigma=sigma, sigma_err=sigma_err, N=N))
 
