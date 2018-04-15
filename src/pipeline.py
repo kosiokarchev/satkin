@@ -287,8 +287,7 @@ class ConePipeline:
                 b = join(b, counts, 'fofCentralId')
 
                 w = b['f'] / b['n']
-                shw = np.sqrt(np.nansum(w * b['dv']**2)
-                              / np.nansum(w))
+                shw = np.sqrt(np.nansum(w * b['dv']**2) / len(counts))
                 sigma.append((s, shw))
                 sigma_err.append((errs[0], 1))
                 N.append(np.nanmean(counts['n']))
