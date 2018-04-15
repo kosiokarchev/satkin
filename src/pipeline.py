@@ -276,7 +276,7 @@ class ConePipeline:
             (ssw, Asw, Bsw), esw = self.fit_cumgauss(b['dv'])
             if not np.isfinite(esw[0]):
                 ssw = shw = n = np.nan
-                ehw = np.inf
+                ehw = [np.inf, np.inf, np.inf]
             else:
                 a = Asw / (np.sqrt(2*np.pi) * ssw)
                 k = Bsw / 2
