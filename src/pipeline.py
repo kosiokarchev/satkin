@@ -295,7 +295,7 @@ class ConePipeline:
                 counts = counts.keys
                 b = join(b, counts, 'fofCentralId')
 
-                shw = np.sqrt(np.average(b['dv']**2), weights=1/b['n'])
+                shw = np.sqrt(np.average(b['dv']**2, weights=1/b['n']))
 
                 sigma.append((s, shw))
                 sigma_err.append((errs[0], 1))
