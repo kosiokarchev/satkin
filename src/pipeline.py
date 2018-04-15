@@ -273,22 +273,28 @@ class ConePipeline:
 
 
             b = g['fofCentralId', 'dv'][start:end]
-            counts = b.group_by('fofCentralId').groups
-            counts.keys['n'] = counts.indices[1:] - counts.indices[:-1]
-            counts = counts.keys
-            # counts = b['fofCentralId', 'f'].group_by('fofCentralId').groups.aggregate(np.nansum)
-            # counts.rename_column('f', 'n')
-            b = join(b, counts, 'fofCentralId')
-
             (ssw, Asw, Bsw), esw = self.fit_cumgauss(b['dv'])
             if not np.isfinite(esw[0]):
-                ssw = np.nan
+                ssw = shw = n = np.nan
+                ehw = np.inf
+            else:
+                a = Asw / (np.sqrt(2*np.pi) * ssw)
+                k = Bsw / 2
+                f = a * np.exp(-b['dv'] ** 2 / (2 * ssw**2))
+                b['f'] = f / (k + f)
 
-            (shw, Ahw, Bhw), ehw = self.fit_cumgauss(b['dv'], 1 / b['n'])
-            if not np.isfinite(ehw[0]):
-                shw = np.nan
+                # counts = b.group_by('fofCentralId').groups
+                # counts.keys['n'] = counts.indices[1:] - counts.indices[:-1]
+                # counts = counts.keys
+                counts = b['fofCentralId', 'f'].group_by('fofCentralId').groups.aggregate(np.nansum)
+                counts.rename_column('f', 'n')
+                b = join(b, counts, 'fofCentralId')
 
-            n = np.nanmean(counts['n'])
+                (shw, Ahw, Bhw), ehw = self.fit_cumgauss(b['dv'], 1 / b['n'])
+                if not np.isfinite(ehw[0]):
+                    shw = np.nan
+
+                n = np.nanmean(counts['n'])
 
             sigma.append((ssw, shw))
             sigma_err.append((esw[0], ehw[0]))
