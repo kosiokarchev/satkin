@@ -292,7 +292,7 @@ class ConePipeline:
                 counts.rename_column('f', 'n')
                 b = join(b, counts, 'fofCentralId')
 
-                (shw, Ahw, Bhw), ehw = self.fit_cumgauss(b['dv'], 1 / b['n'])
+                (shw, Ahw, Bhw), ehw = self.fit_cumgauss(b['dv'], b['f'] / b['n'])
                 if not np.isfinite(ehw[0]):
                     shw = np.nan
 
