@@ -163,13 +163,16 @@ class ConePipeline:
         return centrals, sats['fofCentralId', 'stellarMass', 'z', 'dz', 'd']
 
     @staticmethod
-    def fit_cumgauss(dv):
+    def fit_cumgauss(dv, w=None):
+        if w is None:
+            w = np.full_like(dv, 1)
         dv = np.abs(dv)
         dv.sort()
 
         p0 = (300, 500 / len(dv), 200 / len(dv) / np.max(dv))
 
-        y = (np.arange(len(dv)) + 1) / len(dv)
+        # y = (np.arange(len(dv)) + 1) / len(dv)
+        y = np.cumsum(w) / w.sum()
         func = lambda args: ((y - cumgauss(dv, *args)) ** 2).sum()
         res = minimize(func, p0, method='Nelder-Mead')
 
@@ -270,42 +273,59 @@ class ConePipeline:
 
 
             b = g['fofCentralId', 'dv'][start:end]
-            popt, errs = self.fit_cumgauss(b['dv'])
-            if not np.isfinite(errs[0]):
-                sigma.append((np.nan, np.nan))
-                sigma_err.append((np.inf, np.inf))
-                N.append(np.nan)
-            else:
-                s, A, B = popt
-                a = A / (np.sqrt(2*np.pi) * s)
-                k = B / 2
-                f = a * np.exp(-b['dv'] ** 2 / (2 * s**2))
-                b['f'] = f / (k + f)
-                # ftrue = A / (A + B*self.dvsat)
-                # print(ftrue)
+            counts = b['fofCentralId', 'f'].group_by('fofCentralId').groups.aggregate(np.nansum)
+            counts.rename_column('f', 'n')
+            b = join(b, counts, 'fofCentralId')
 
-                subb = b[np.abs(b['dv']) < 3*np.abs(s)]
-                if len(subb) > 0:
-                    counts = subb.group_by('fofCentralId').groups
-                    counts.keys['n'] = counts.indices[1:] - counts.indices[:-1]
-                    counts = counts.keys
+            (ssw, Asw, Bsw), esw = self.fit_cumgauss(b['dv'])
+            if not np.isfinite(esw[0]):
+                ssw = np.nan
 
-                    # counts = subb['fofCentralId', 'f'].group_by('fofCentralId').groups.aggregate(np.nansum)
-                    # counts.rename_column('f', 'n')
-                    subb = join(subb, counts, 'fofCentralId')
+            (shw, Ahw, Bhw), ehw = self.fit_cumgauss(b['dv'], 1 / b['n'])
+            if not np.isfinite(ehw[0]):
+                shw = np.nan
 
-                    w = 1 / subb['n']
-                    # # subb = b[b['n'] > 1/ftrue]
-                    # w = subb['f'] / subb['n']
-                    shw = np.sqrt(np.nansum(w * subb['dv']**2) / np.nansum(w))
-                    n = np.nanmean(counts['n'])
-                else:
-                    shw = np.nan
-                    n = np.nan
+            n = np.nanmean(counts['n'])
 
-                sigma.append((s, shw))
-                sigma_err.append((errs[0], 1))
-                N.append(n)
+            sigma.append((ssw, shw))
+            sigma_err.append((esw[0], ehw[0]))
+            N.append(n)
+
+            # if not np.isfinite(errs[0]):
+            #     sigma.append((np.nan, np.nan))
+            #     sigma_err.append((np.inf, np.inf))
+            #     N.append(np.nan)
+            # else:
+            #     s, A, B = popt
+            #     a = A / (np.sqrt(2*np.pi) * s)
+            #     k = B / 2
+            #     f = a * np.exp(-b['dv'] ** 2 / (2 * s**2))
+            #     b['f'] = f / (k + f)
+            #     # ftrue = A / (A + B*self.dvsat)
+            #     # print(ftrue)
+            #
+            #     subb = b[np.abs(b['dv']) < 3*np.abs(s)]
+            #     if len(subb) > 0:
+            #         counts = subb.group_by('fofCentralId').groups
+            #         counts.keys['n'] = counts.indices[1:] - counts.indices[:-1]
+            #         counts = counts.keys
+            #
+            #         # counts = subb['fofCentralId', 'f'].group_by('fofCentralId').groups.aggregate(np.nansum)
+            #         # counts.rename_column('f', 'n')
+            #         subb = join(subb, counts, 'fofCentralId')
+            #
+            #         w = 1 / subb['n']
+            #         # # subb = b[b['n'] > 1/ftrue]
+            #         # w = subb['f'] / subb['n']
+            #         shw = np.sqrt(np.nansum(w * subb['dv']**2) / np.nansum(w))
+            #         n = np.nanmean(counts['n'])
+            #     else:
+            #         shw = np.nan
+            #         n = np.nan
+            #
+            #     sigma.append((s, shw))
+            #     sigma_err.append((errs[0], 1))
+            #     N.append(n)
 
         self.res = Table(dict(ms=ms, sigma=sigma, sigma_err=sigma_err, N=N))
 
