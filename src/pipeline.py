@@ -277,25 +277,18 @@ class ConePipeline:
                 N.append(np.nan)
             else:
                 s, A, B = popt
-                # a = A / (np.sqrt(2*np.pi) * s)
-                # k = B / 2
-                # f = a * np.exp(-b['dv'] ** 2 / (2 * s**2))
-                # b['f'] = f / (k + f)
-                #
-                # counts = b['fofCentralId', 'f'].group_by('fofCentralId').groups.aggregate(np.nansum)
-                # counts.rename_column('f', 'n')
-                # b = join(b, counts, 'fofCentralId')
-                #
-                # subb = b[b['n'] > 1]
-                # w = subb['f'] / subb['n']
-                # shw = np.sqrt(np.nansum(w * subb['dv']**2) / len(subb))
+                a = A / (np.sqrt(2*np.pi) * s)
+                k = B / 2
+                f = a * np.exp(-b['dv'] ** 2 / (2 * s**2))
+                b['f'] = f / (k + f)
 
-                counts = b.group_by('fofCentralId').groups
-                counts.keys['n'] = counts.indices[1:] - counts.indices[:-1]
-                counts = counts.keys
+                counts = b['fofCentralId', 'f'].group_by('fofCentralId').groups.aggregate(np.nansum)
+                counts.rename_column('f', 'n')
                 b = join(b, counts, 'fofCentralId')
 
-                shw = np.sqrt(np.average(b['dv']**2, weights=1/b['n']))
+                subb = b[b['n'] > 0.5]
+                w = subb['f'] / subb['n']
+                shw = np.sqrt(np.nansum(w * subb['dv']**2) / np.nansum(w))
 
                 sigma.append((s, shw))
                 sigma_err.append((errs[0], 1))
