@@ -281,12 +281,14 @@ class ConePipeline:
                 k = B / 2
                 f = a * np.exp(-b['dv'] ** 2 / (2 * s**2))
                 b['f'] = f / (k + f)
+                ftrue = A / (A + k*2*self.dvsat)
+                print(ftrue)
 
                 counts = b['fofCentralId', 'f'].group_by('fofCentralId').groups.aggregate(np.nansum)
                 counts.rename_column('f', 'n')
                 b = join(b, counts, 'fofCentralId')
 
-                subb = b[b['n'] > 0.34]
+                subb = b[b['n'] > 1/ftrue]
                 w = subb['f'] / subb['n']
                 shw = np.sqrt(np.nansum(w * subb['dv']**2) / np.nansum(w))
 
