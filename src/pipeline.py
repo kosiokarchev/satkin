@@ -167,7 +167,9 @@ class ConePipeline:
         if w is None:
             w = np.full_like(dv, 1)
         dv = np.abs(dv)
-        dv.sort()
+        asort = np.argsort(dv)
+        dv = dv[asort]
+        w = w[asort]
 
         p0 = (300, 500 / len(dv), 200 / len(dv) / np.max(dv))
 
