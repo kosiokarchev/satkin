@@ -98,7 +98,10 @@ def two_lines_1(x, x0, y0, a1, a2):
 def two_lines_2(x, x0, y0, a1, a2, scale=1):
     da = a2-a1
     dx = (x-x0) / scale
-    return y0 + a1*dx + da*np.log10((1 + np.power(10, dx)) / 2)
+    logpart = np.where(dx < 300,
+                       np.log10((1 + np.power(10, dx)) / 2),
+                       dx - np.log10(2))
+    return y0 + a1*dx + da*logpart
 
 
 two_lines = two_lines_2
