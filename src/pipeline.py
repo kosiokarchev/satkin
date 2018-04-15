@@ -286,9 +286,10 @@ class ConePipeline:
                 counts.rename_column('f', 'n')
                 b = join(b, counts, 'fofCentralId')
 
-                w = 1. / b['n']
-                shw = np.sqrt(np.nansum(f * w * b['dv']**2)
-                              / np.nansum(w))
+                subb = b[b['n'] > 1]
+                w = subb['f'] / subb['n']
+                shw = np.sqrt(np.nansum(w * subb['dv']**2) / np.nansum(w))
+
                 sigma.append((s, shw))
                 sigma_err.append((errs[0], 1))
                 N.append(np.nanmean(counts['n']))
