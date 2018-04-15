@@ -284,7 +284,7 @@ class ConePipeline:
                 # ftrue = A / (A + B*self.dvsat)
                 # print(ftrue)
 
-                subb = b[np.abs(b['dv']) > 3*s]
+                subb = b[np.abs(b['dv']) < 3*np.abs(s)]
                 counts = subb.group_by('fofCentralId').groups
                 counts.keys['n'] = counts.indices[1:] - counts.indices[:-1]
                 counts = counts.keys
