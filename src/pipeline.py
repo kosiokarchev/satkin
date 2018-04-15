@@ -273,8 +273,11 @@ class ConePipeline:
 
 
             b = g['fofCentralId', 'dv'][start:end]
-            counts = b['fofCentralId', 'f'].group_by('fofCentralId').groups.aggregate(np.nansum)
-            counts.rename_column('f', 'n')
+            counts = b.group_by('fofCentralId').groups
+            counts.keys['n'] = counts.indices[1:] - counts.indices[:-1]
+            counts = counts.keys
+            # counts = b['fofCentralId', 'f'].group_by('fofCentralId').groups.aggregate(np.nansum)
+            # counts.rename_column('f', 'n')
             b = join(b, counts, 'fofCentralId')
 
             (ssw, Asw, Bsw), esw = self.fit_cumgauss(b['dv'])
