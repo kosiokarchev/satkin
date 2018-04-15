@@ -289,12 +289,11 @@ class ConePipeline:
                 counts.keys['n'] = counts.indices[1:] - counts.indices[:-1]
                 counts = counts.keys
 
-                w = 1 / subb['n']
-
                 # counts = subb['fofCentralId', 'f'].group_by('fofCentralId').groups.aggregate(np.nansum)
                 # counts.rename_column('f', 'n')
-                # subb = join(subb, counts, 'fofCentralId')
-                #
+                subb = join(subb, counts, 'fofCentralId')
+
+                w = 1 / subb['n']
                 # # subb = b[b['n'] > 1/ftrue]
                 # w = subb['f'] / subb['n']
                 shw = np.sqrt(np.nansum(w * subb['dv']**2) / np.nansum(w))
