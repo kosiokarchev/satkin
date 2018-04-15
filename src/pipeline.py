@@ -286,7 +286,7 @@ class ConePipeline:
                 counts.rename_column('f', 'n')
                 b = join(b, counts, 'fofCentralId')
 
-                subb = b[b['n'] > 0.5]
+                subb = b[b['n'] > 0.34]
                 w = subb['f'] / subb['n']
                 shw = np.sqrt(np.nansum(w * subb['dv']**2) / np.nansum(w))
 
