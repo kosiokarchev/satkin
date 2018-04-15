@@ -150,8 +150,7 @@ class SWProcedure(Procedure):
         binned = self.sats.group_by('bin')
         self.sats.remove_column('bin')
 
-        res = binned['bin', 'vpec', 'vpecx', 'vpecy', 'vpecz'].groups.aggregate(
-            np.std)
+        res = binned['bin', 'vpec', 'vpecx', 'vpecy', 'vpecz'].groups.aggregate(np.std)
 
         res.rename_column('vpec', 'sigma')
         res.rename_column('vpecx', 'sigmax')

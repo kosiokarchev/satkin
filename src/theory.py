@@ -34,6 +34,7 @@ class Poissonizer:
         N.rename_column('n', 'N')
 
         self.t = join(self.t, N, self.bincols, 'left')
+        self.t['f'] = self.t['n'] / self.t['N']
 
         self.collapsed = True
         return self
@@ -46,8 +47,6 @@ class Poissonizer:
     def predict(self):
         if not self.collapsed:
             self.collapse()
-
-        self.t['f'] = self.t['n'] / self.t['N']
 
         self.t = self.t.group_by(self.bincols)
 
