@@ -38,5 +38,16 @@ FILES = {
 
     'cone': lambda _i=1, _sats=None: 'cones/cone{:03}{}.fits'.format(_i, '' if _sats is None else '>0' if _sats else '=0'),
     'hst': '3d-hst/3d-hst.fits',
-    'hst-sw': '3d-hst/theplot-sw.fits'
+    'hst-sw': '3d-hst/theplot-sw.fits',
+
+    'p_obs': 'cones/p_obs.npz',
+    'theplot': lambda _sn: 'data/theplot{}.npy'.format(_sn),
+    'theplot_mvfitp': lambda _sn: 'data_aux/theplot_mvfit{}.fits'.format(_sn),
+    'theplot_msfitp': lambda _sn: 'data_aux/theplot_msfit{}.fits'.format(_sn),
+    'phase': lambda _sn: 'data/phase{}.npy'.format(_sn),
+    'phase_obs': lambda _sn: 'cones/phase_obs{}.npy'.format(_sn),
+    'N(mv)': 'data_aux/num_sat(mvir).sav',
+    'No(mv)': lambda _sn: 'data/nums{}_obs_mv.fits'.format(_sn),
+    'f(mv_sat)': 'data_aux/f(mvir_sat).sav',
+    'f(mv)': lambda _sn: 'data_aux/f(mv){}.sav'.format(_sn)
 }
