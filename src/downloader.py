@@ -130,6 +130,7 @@ class Downloader:
         print(bigsep)
 
     def download_one(self):
+        self.query.where = '{}>{}'.format(self.index, self.maxindex)
         if self.basewhere:
             self.query.where = self.query.where + ' AND ({})'.format(self.basewhere)
 
