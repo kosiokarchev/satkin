@@ -186,12 +186,11 @@ class ConePipeline:
         else:
             return np.array(p0), np.array([np.inf]*3)
 
-    s2m = HWAProcedure(34, False).get_regression()
-
     @staticmethod
     def sigma2mvir(sigma, sigma_err):
-        mvir = np.log10(sigma / ConePipeline.s2m['amp']) / ConePipeline.s2m['exp']
-        mvir_err = (1 / (np.log(10) * ConePipeline.s2m['exp'])) * sigma_err / sigma
+        s2m = HWAProcedure(34, False).get_regression()
+        mvir = np.log10(sigma / s2m['amp']) / s2m['exp']
+        mvir_err = (1 / (np.log(10) * s2m['exp'])) * sigma_err / sigma
 
         return mvir, mvir_err
 
