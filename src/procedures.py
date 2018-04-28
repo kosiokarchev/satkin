@@ -329,6 +329,7 @@ class HWSigmaProcedure(HWProcedure):
             self.stdev.rename_column(col, col.replace('rms', 'sigma'))
         self.stdev['stellarMass'] = left + (self.stdev['bin'] + 0.5) * width
         self.stdev['N'] = binned.groups.indices[1:] - binned.groups.indices[:-1]
+        self.stdev['num_sat'] = binned['num_sat'].groups.aggregate(np.mean)
 
         if write:
             self.write_stdev()
