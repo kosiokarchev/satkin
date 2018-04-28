@@ -1,10 +1,16 @@
 import numpy as np
 
 SNDATA = {
-    34: {'z': 1.5, 'clr': 'red'},
-    38: {'z': 1.0, 'clr': 'green'},
-    45: {'z': 0.5, 'clr': 'blue'}
+    30: {'z': 2.0, 'z_exact': 2.070046, 'gclr': '0.75', 'clr': 'firebrick', 'marker': 'o'},
+    34: {'z': 1.5, 'z_exact': 1.481728, 'gclr': '0.66', 'clr': 'red', 'marker': 'D'},
+    38: {'z': 1.0, 'z_exact': 1.041466, 'gclr': '0.5', 'clr': 'green', 'marker': 's'},
+    45: {'z': 0.5, 'z_exact': 0.513287, 'gclr': '0.33', 'clr': 'blue', 'marker': '^'},
+    58: {'z': 0.0, 'z_exact': 0.000264, 'gclr': '0.25','clr': 'purple', 'marker': 'v'},
+
+    41: {'z': 0.8, 'z_exact': 0.783975, 'gclr': '0.4', 'clr': 'cyan'},
+    50: {'z': 0.25, 'z_exact': 0.262623, 'gclr': '0.3', 'clr': 'magenta'}
 }
+THESNS = (30, 34, 38, 45, 58)
 
 BINWIDTH = 0.1
 PLOTDATA = {
@@ -40,8 +46,13 @@ FILES = {
     'hst': '3d-hst/3d-hst.fits',
     'hst-sw': '3d-hst/theplot-sw.fits',
 
+    'numbins': lambda _sn: 'data/nums/numbins{}.fits'.format(_sn),
+    'numstats': lambda _sn: 'data/nums/numstats{}.fits'.format(_sn),
+
     'p_obs': 'cones/p_obs.npz',
     'theplot': lambda _sn: 'data/theplot{}.npy'.format(_sn),
+    'theplot_data': 'data/theplot_data.pickle',
+    'theplot_params': 'data/theplot_params.fits',
     'theplot_mvfitp': lambda _sn: 'data_aux/theplot_mvfit{}.fits'.format(_sn),
     'theplot_msfitp': lambda _sn: 'data_aux/theplot_msfit{}.fits'.format(_sn),
     'phase': lambda _sn: 'data/phase{}.npy'.format(_sn),
