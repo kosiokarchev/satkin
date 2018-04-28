@@ -60,4 +60,7 @@ def Mp_overmvirgc(Rt, c):
 def sigmaap2_overvvir2(Rt, c):
     return S2_overmvirvvir2gc(Rt, c) / Mp_overmvirgc(Rt, c)
 
-lokas = np.vectorize(sigmaap2_overvvir2)
+@np.vectorize
+def lokas(Rt, c, beta0=0.25):
+    globals()['beta0'] = beta0
+    return sigmaap2_overvvir2(Rt, c)
