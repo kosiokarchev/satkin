@@ -48,6 +48,27 @@ def read_idl(fname, prefix=None):
     return Table([s[key] for key in names],
                  names=[k.replace(prefix+'_', '') for k in names] if prefix is not None else names)
 
+def fixsw(fname):
+    from astropy import units as u
+    from astropy.cosmology import Planck13
+    cosmo = Planck13.clone(H0=100*u.km/u.s/u.Mpc)
+
+    t = load(fname)
+
+    h = 0.7
+
+    t['galaxyId'] = np.arange(len(t), dtype=np.int64)
+    t = t['galaxyId', 'ra', 'dec', 'zbest', 'sed_lmass'][t['zbest_type'] == 1]
+    t.rename_column('zbest', 'z_app')
+    t.rename_column('sed_lmass', 'stellarMass')
+    t = t[t['z_app'] > 0]
+    t['stellarMass'] = np.power(10, t['stellarMass']) / 1e10 * h
+    t['ra'] = np.deg2rad(t['ra'])
+    t['dec'] = np.deg2rad(t['dec'])
+    t['d_comoving'] = cosmo.comoving_distance(t['z_app'])
+
+    return t
+
 def deal(t, minms=6):
     t = t[np.where(t['stellarMass'] > np.power(10., minms-10))]
     t['mv'] = 10 + np.log10(t['mvir'])
@@ -57,6 +78,12 @@ def deal(t, minms=6):
 
 def percentile_wrapper(q):
     return lambda a: np.percentile(a, q)
+def percentile(x, y, p, d=None):
+    if d is None:
+        d = np.full_like(p, np.nan)
+    return np.array([x[np.searchsorted(np.cumsum(a), p)]
+                    if not np.all(np.isnan(a)) else d
+                    for a in y]).T
 
 
 def fit_or(model, data, outlier_func=sigma_clip, niter=3, outlier_kwargs=None, **model_kwargs):
@@ -85,6 +112,13 @@ def fit_or(model, data, outlier_func=sigma_clip, niter=3, outlier_kwargs=None, *
         fit_res = model.fit(data, **model_kwargs)
 
     return indices, fit_res
+
+def powerlaw(x, amplitude, exponent, scale=1):
+    return amplitude*np.power(x/scale, exponent)
+def logpowerlaw(x, amplitude, exponent, scale=1):
+    return np.log10(amplitude) + exponent * (x - np.log10(scale))
+def line(x, intercept, slope, offset=0):
+    return intercept + slope * (x-offset)
 
 def two_lines_1(x, x0, y0, a1, a2):
     res = np.full_like(x, y0)
@@ -122,8 +156,7 @@ class SchechterModel(lmfit.model.Model):
         super(SchechterModel, self).__init__(schechter_func, **kws)
         self.name = 'Schechter'
 
-from conversions import s2h, mvir2c
-
+from conversions import s2h, mvir2c, mvir2rvir, mvir2vvir, mv2s2
 
 # from binner import bin2d, binX
 # from observer import Observer, Regressor
