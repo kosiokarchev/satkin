@@ -149,11 +149,12 @@ class Pipeline:
 class ConePipeline:
     @staticmethod
     def split(t):
+        if 'fofCentralId' in t.colnames:
+            iscen = t['galaxyId']
         centrals = t['galaxyId', 'stellarMass', 'z_app'][t['iscen']]
         centrals.rename_column('galaxyId', 'fofCentralId')
 
-        sats = t['cId', 'z_app', 'd'][t['issat']]
-        sats.rename_column('cId', 'fofCentralId')
+        sats = t['fofCentralId', 'z_app', 'd'][t['issat']]
 
         sats = join(sats, centrals, 'fofCentralId')
 
@@ -186,13 +187,16 @@ class ConePipeline:
         else:
             return np.array(p0), np.array([np.inf]*3)
 
-    @staticmethod
-    def sigma2mvir(sigma, sigma_err):
-        s2m = HWAProcedure(34, False).get_regression()
-        mvir = np.log10(sigma / s2m['amp']) / s2m['exp']
-        mvir_err = (1 / (np.log(10) * s2m['exp'])) * sigma_err / sigma
+    # @staticmethod
+    # def sigma2mvir(sigma, sigma_err):
+    #     s2m = HWAProcedure(38, False).get_regression()
+    #     mvir = np.log10(sigma / s2m['amp']) / s2m['exp']
+    #     mvir_err = (1 / (np.log(10) * s2m['exp'])) * sigma_err / sigma
+    #
+    #     return mvir, mvir_err
 
-        return mvir, mvir_err
+    cols = ['galaxyId', 'stellarMass',
+            'z_app', 'ra', 'dec', 'd_comoving']
 
     def __init__(self, cone,
                  nvircen=2, nvirsat=1, dvcen=3000, dvsat=3000, fM=1.0, d0=2.0,
@@ -229,10 +233,7 @@ class ConePipeline:
         'bootstrap': lambda cone: (np.random.random(len(cone))*len(cone)).astype(int)
     }
     def create_sample(self):
-        self.sample = self.cone[
-            'galaxyId', 'stellarMass',
-            'z_app', 'ra', 'dec', 'd_comoving'
-        ][self.sampler(self.cone)]
+        self.sample = self.cone[self.cols][self.sampler(self.cone)]
 
     def examine(self):
         res = galocate(self.sample,
@@ -241,12 +242,20 @@ class ConePipeline:
                        fM=self.fM, d0=self.d0)
 
         self.sample['iscen'] = res['iscen']
-        self.sample['cId']   = res['fofCentralId']
+        self.sample['fofCentralId'] = res['fofCentralId']
         self.sample['d']     = res['d']
         self.sample['issat'] = np.logical_and(~res['iscen'],
                                               res['fofCentralId'])
 
-        self.cen, self.sats = ConePipeline.split(self.sample)
+        self.cen, self.sats = self.split(self.sample)
+    def set_examined(self, t):
+        self.sample = t[self.cols + ['fofCentralId']]
+        self.sample['iscen'] = t['galaxyId'] == t['fofCentralId']
+        self.sample['issat'] = ~self.sample['iscen']
+        self.sample['d'] = np.nan
+
+        self.cen, self.sats = self.split(self.sample)
+        return self
 
     def predict(self):
         g = Table()
@@ -339,7 +348,9 @@ class ConePipeline:
 
         self.res = Table(dict(ms=ms, sigma=sigma, sigma_err=sigma_err, N=N))
 
-        self.res['mv'], self.res['mv_err'] = ConePipeline.sigma2mvir(self.res['sigma'], self.res['sigma_err'])
+        return self
+
+        # self.res['mv'], self.res['mv_err'] = self.sigma2mvir(self.res['sigma'], self.res['sigma_err'])
 
     def plot(self):
         plt.errorbar(self.res['mv'], self.res['ms'], xerr=self.res['mv_err'], linestyle='', marker='o')
@@ -395,8 +406,8 @@ class ConeBootstrapper:
 
         N = np.full(shape[:-1], np.nan)
 
-        mvir = np.full(shape, np.nan)
-        mvir_err = np.full(shape, np.inf)
+        # mvir = np.full(shape, np.nan)
+        # mvir_err = np.full(shape, np.inf)
 
         for i in range(len(files)):
             t = load(files[i])
@@ -407,16 +418,16 @@ class ConeBootstrapper:
 
             N[i, w[0]] = t['N'][w[1]]
 
-            mvir[i, w[0]] = t['mv'][w[1]]
-            mvir_err[i, w[0]] = t['mv_err'][w[1]]
+            # mvir[i, w[0]] = t['mv'][w[1]]
+            # mvir_err[i, w[0]] = t['mv_err'][w[1]]
 
-        weight = 1 / mvir_err ** 2
-        sumw = np.nansum(weight, axis=0)
-
-        mv = np.nansum(weight * mvir, axis=0) / sumw
-        mv_err = np.sqrt(np.sum(weight * (mvir - mv[np.newaxis, :]) ** 2, axis=0) / sumw)
+        # weight = 1 / mvir_err ** 2
+        # sumw = np.nansum(weight, axis=0)
+        #
+        # mv = np.nansum(weight * mvir, axis=0) / sumw
+        # mv_err = np.sqrt(np.sum(weight * (mvir - mv[np.newaxis, :]) ** 2, axis=0) / sumw)
 
         return dict(sigma=sigma, sigma_err=sigma_err, N=N,
-                    mvir=mvir, mvir_err=mvir_err,
-                    mv=mv, mv_err=mv_err,
+                    # mvir=mvir, mvir_err=mvir_err,
+                    # mv=mv, mv_err=mv_err,
                     ms=(ms+0.5)*binwidth)
