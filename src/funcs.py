@@ -148,6 +148,33 @@ def ecurve(x, a=1, x0=1, b=0):
 def cumgauss(x, sigma, A, B):
     return A * erf(x / (np.sqrt(2) * sigma)) + B * x
 
+class CumGaussConstModel(lmfit.Model):
+    def __init__(self, *args, **kwargs):
+        super(CumGaussConstModel, self).__init__(cumgauss, *args, **kwargs)
+        self.set_param_hint('sigma', min=0)
+        self.set_param_hint('A', min=0)
+        self.set_param_hint('B', min=0)
+
+
+def cum2gauss(x, sigma1, A1, sigma2, A2, B):
+    return (B * x
+            + A1 * erf(x / (np.sqrt(2) * sigma1))
+            + A2 * erf(x / (np.sqrt(2) * sigma2)))
+class Cum2GaussConstModel(lmfit.Model):
+    def __init__(self, *args, **kwargs):
+        super(Cum2GaussConstModel, self).__init__(cum2gauss, *args, **kwargs)
+
+        self.set_param_hint('sigma1', value=0.001, min=0.001)
+        self.set_param_hint('sigma2', value=0.001, min=0.001)
+        self.set_param_hint('sigmadiff', expr='sigma2-sigma1', min=0)
+        self.set_param_hint('A1', min=0)
+        self.set_param_hint('A2', min=0.001)
+        self.set_param_hint('B', min=0)
+        self.set_param_hint('probsum', expr='B + A1*erf(1/(sqrt(2)*sigma1)) + A2*erf(1/(sqrt(2)*sigma2))', value=1, vary= False)
+        # self.set_param_hint('probsum', expr='A1+A2+B', min=0)
+        self.set_param_hint('sigma', expr='sqrt((A1*sigma1**2 + A2*sigma2**2) / (A1+A2))')
+
+
 def schechter_func(x, a, x0, b, c):
     dx = x - x0
     return c + (a+1) * dx - np.power(10, b*dx) / np.log(10)
