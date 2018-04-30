@@ -164,7 +164,7 @@ class ConePipeline:
         return centrals, sats['fofCentralId', 'stellarMass', 'z', 'dz', 'd']
 
     @staticmethod
-    def fit_cumgauss(dv, w=None):
+    def fit_cumgauss(dv, w=None, dodouble=True, interlopers=True, **kwargs):
         if w is None:
             w = np.full_like(dv, 1)
         dv = np.abs(dv)
@@ -172,28 +172,42 @@ class ConePipeline:
         dv = dv[asort]
         w = w[asort]
 
-        p0 = (300, 500 / len(dv), 200 / len(dv) / np.max(dv))
-
-        # y = (np.arange(len(dv)) + 1) / len(dv)
         y = np.cumsum(w) / w.sum()
-        func = lambda args: ((y - cumgauss(dv, *args)) ** 2).sum()
-        res = minimize(func, p0, method='Nelder-Mead')
+        x = dv / np.max(dv)
 
-        if res.success:
-            popt = res.x
-            pcov = np.linalg.pinv(nd.Hessian(func)(popt))
-            errs = np.sqrt(np.abs(np.diag(pcov)))
-            return popt, errs
-        else:
-            return np.array(p0), np.array([np.inf]*3)
+        mod = Cum2GaussConstModel(nan_policy='omit')
+        params = mod.make_params(
+            sigma1=0.1, A1=0,
+            sigma2=dv[np.searchsorted(y, 0.68)], A2=0.9,
+            B=0.1)
+        params['sigma1'].vary = params['A1'].vary = False
 
-    # @staticmethod
-    # def sigma2mvir(sigma, sigma_err):
-    #     s2m = HWAProcedure(38, False).get_regression()
-    #     mvir = np.log10(sigma / s2m['amp']) / s2m['exp']
-    #     mvir_err = (1 / (np.log(10) * s2m['exp'])) * sigma_err / sigma
-    #
-    #     return mvir, mvir_err
+        if not interlopers:
+            params['B'].value = 0
+            params['B'].vary = False
+
+        try:
+            res1 = mod.fit(y, x=dv, params=params)
+
+            if dodouble:
+                params2 = params.copy()
+                params2['sigma1'].value = params2['sigma2'].value / 2
+                params2['A1'].value = params2['A2'].value = params2[
+                                                                'A2'].value / 2
+                params2['sigma1'].vary = params2['A1'].vary = True
+
+                try:
+                    res2 = mod.fit(y, x=dv, params=params2, **kwargs)
+                    if (res2.params['sigma'].stderr and
+                            res2.params['sigma'].stderr < res2.params[
+                                'sigma'].value):
+                        return res2.params
+                except:
+                    pass
+        except:
+            return False
+
+        return res1.params
 
     cols = ['galaxyId', 'stellarMass',
             'z_app', 'ra', 'dec', 'd_comoving']
@@ -248,6 +262,8 @@ class ConePipeline:
                                               res['fofCentralId'])
 
         self.cen, self.sats = self.split(self.sample)
+
+        return self
     def set_examined(self, t):
         self.sample = t[self.cols + ['fofCentralId']]
         self.sample['iscen'] = t['galaxyId'] == t['fofCentralId']
@@ -257,7 +273,7 @@ class ConePipeline:
         self.cen, self.sats = self.split(self.sample)
         return self
 
-    def predict(self):
+    def predict(self, **kwargs):
         g = Table()
         g['fofCentralId'] = self.sats['fofCentralId']
         g['dv'] = 3e5 * self.sats['dz'] / (1 + self.sats['z'])
@@ -283,74 +299,53 @@ class ConePipeline:
 
 
             b = g['fofCentralId', 'dv'][start:end]
-            (ssw, Asw, Bsw), esw = self.fit_cumgauss(b['dv'])
-            if not np.isfinite(esw[0]):
+
+            norm = np.max(b['dv'])
+            dv = b['dv'] / norm
+
+            print('SW:')
+            ressw = self.fit_cumgauss(dv, **kwargs)
+            if ressw is False:
                 ssw = shw = n = np.nan
-                ehw = [np.inf, np.inf, np.inf]
+                esw = np.inf
+                ehw = np.inf
             else:
-                a = Asw / (np.sqrt(2*np.pi) * ssw)
-                k = Bsw / 2
-                f = a * np.exp(-b['dv'] ** 2 / (2 * ssw**2))
-                b['f'] = f / (k + f)
+                ssw = ressw['sigma'].value
+                esw = ressw['sigma'].stderr
+
+                s1 = ressw['sigma1'].value
+                a1 = ressw['A1'].value / (np.sqrt(2*np.pi) * s1)
+                s2 = ressw['sigma2'].value
+                a2 = ressw['A2'].value / (np.sqrt(2*np.pi) * s2)
+                f = a1 * np.exp(-dv**2 / (2*s1**2)) + a2 * np.exp(-dv**2 / (2*s2**2))
+                b['f'] = f / (0.5*ressw['B'].value + f)
 
                 counts = b.group_by('fofCentralId').groups
                 counts.keys['n'] = counts.indices[1:] - counts.indices[:-1]
                 counts = counts.keys
                 b = join(b, counts, 'fofCentralId')
 
-                (shw, Ahw, Bhw), ehw = self.fit_cumgauss(b['dv'], b['f'] / b['n'])
-                if not np.isfinite(ehw[0]):
+                print('HW:')
+                reshw = self.fit_cumgauss(dv, b['f'] / b['n'], **kwargs)
+                if reshw is False:
                     shw = np.nan
+                    ehw = np.inf
+                else:
+                    shw = reshw['sigma'].value
+                    ehw = reshw['sigma'].stderr
+
 
                 counts = b['fofCentralId', 'f'].group_by('fofCentralId').groups.aggregate(np.nansum)
                 counts.rename_column('f', 'n')
                 n = np.nanmean(counts['n'])
 
-            sigma.append((ssw, shw))
-            sigma_err.append((esw[0], ehw[0]))
+            sigma.append((ssw*norm, shw*norm))
+            sigma_err.append((esw*norm, ehw*norm))
             N.append(n)
-
-            # if not np.isfinite(errs[0]):
-            #     sigma.append((np.nan, np.nan))
-            #     sigma_err.append((np.inf, np.inf))
-            #     N.append(np.nan)
-            # else:
-            #     s, A, B = popt
-            #     a = A / (np.sqrt(2*np.pi) * s)
-            #     k = B / 2
-            #     f = a * np.exp(-b['dv'] ** 2 / (2 * s**2))
-            #     b['f'] = f / (k + f)
-            #     # ftrue = A / (A + B*self.dvsat)
-            #     # print(ftrue)
-            #
-            #     subb = b[np.abs(b['dv']) < 3*np.abs(s)]
-            #     if len(subb) > 0:
-            #         counts = subb.group_by('fofCentralId').groups
-            #         counts.keys['n'] = counts.indices[1:] - counts.indices[:-1]
-            #         counts = counts.keys
-            #
-            #         # counts = subb['fofCentralId', 'f'].group_by('fofCentralId').groups.aggregate(np.nansum)
-            #         # counts.rename_column('f', 'n')
-            #         subb = join(subb, counts, 'fofCentralId')
-            #
-            #         w = 1 / subb['n']
-            #         # # subb = b[b['n'] > 1/ftrue]
-            #         # w = subb['f'] / subb['n']
-            #         shw = np.sqrt(np.nansum(w * subb['dv']**2) / np.nansum(w))
-            #         n = np.nanmean(counts['n'])
-            #     else:
-            #         shw = np.nan
-            #         n = np.nan
-            #
-            #     sigma.append((s, shw))
-            #     sigma_err.append((errs[0], 1))
-            #     N.append(n)
 
         self.res = Table(dict(ms=ms, sigma=sigma, sigma_err=sigma_err, N=N))
 
         return self
-
-        # self.res['mv'], self.res['mv_err'] = self.sigma2mvir(self.res['sigma'], self.res['sigma_err'])
 
     def plot(self):
         plt.errorbar(self.res['mv'], self.res['ms'], xerr=self.res['mv_err'], linestyle='', marker='o')
@@ -406,9 +401,6 @@ class ConeBootstrapper:
 
         N = np.full(shape[:-1], np.nan)
 
-        # mvir = np.full(shape, np.nan)
-        # mvir_err = np.full(shape, np.inf)
-
         for i in range(len(files)):
             t = load(files[i])
             w = np.where(ms[:, np.newaxis] == (t['ms'].data // binwidth)[np.newaxis, :])
@@ -418,16 +410,4 @@ class ConeBootstrapper:
 
             N[i, w[0]] = t['N'][w[1]]
 
-            # mvir[i, w[0]] = t['mv'][w[1]]
-            # mvir_err[i, w[0]] = t['mv_err'][w[1]]
-
-        # weight = 1 / mvir_err ** 2
-        # sumw = np.nansum(weight, axis=0)
-        #
-        # mv = np.nansum(weight * mvir, axis=0) / sumw
-        # mv_err = np.sqrt(np.sum(weight * (mvir - mv[np.newaxis, :]) ** 2, axis=0) / sumw)
-
-        return dict(sigma=sigma, sigma_err=sigma_err, N=N,
-                    # mvir=mvir, mvir_err=mvir_err,
-                    # mv=mv, mv_err=mv_err,
-                    ms=(ms+0.5)*binwidth)
+        return dict(sigma=sigma, sigma_err=sigma_err, N=N, ms=(ms+0.5)*binwidth)
