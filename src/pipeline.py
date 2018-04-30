@@ -303,7 +303,8 @@ class ConePipeline:
             norm = np.max(b['dv'])
             dv = b['dv'] / norm
 
-            print('SW:')
+            if not self.quiet:
+                print('SW:')
             ressw = self.fit_cumgauss(dv, **kwargs)
             if ressw is False:
                 ssw = shw = n = np.nan
@@ -325,7 +326,8 @@ class ConePipeline:
                 counts = counts.keys
                 b = join(b, counts, 'fofCentralId')
 
-                print('HW:')
+                if not self.quiet:
+                    print('HW:')
                 reshw = self.fit_cumgauss(dv, b['f'] / b['n'], **kwargs)
                 if reshw is False:
                     shw = np.nan
