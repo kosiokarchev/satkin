@@ -23,16 +23,6 @@ fits = {
 
 s2fits = pickle.load(open(files['s2fits'], 'rb'))
 
-s2_model = lmfit.Model(logpowerlaw, param_names=['exponent', 'amplitude'], scale=1e12)
-s2_params = lmfit.Parameters(
-    amplitude=lmfit.Parameter('amplitude', 20000),
-    exponent=lmfit.Parameter('exponent', 0.64),
-    # amplitude=lmfit.Parameter('amplitude', 14380),
-    # exponent=lmfit.Parameter('exponent', 0.713),
-    # amplitude=lmfit.Parameter('amplitude', 11900),
-    # exponent=lmfit.Parameter('exponent', 0.7037)
-)
-
 def save_parameters(par, fname):
     with open(fname, 'w') as f:
         par.dump(f)
@@ -84,7 +74,7 @@ class ThePlot:
 
     @staticmethod
     def spread(mv, a, s12):
-        return a * (mv - 12)**2 + s12
+        return a * (mv - 12) + s12
 
     def G(self, mv, ms, mms_mv0, mms_ms0, mms_a1, mms_a2, mms_scale, spread_a, spread_s12):
         s = self.spread(mv, spread_a, spread_s12)
@@ -103,6 +93,16 @@ class ThePlot:
                         mms_mv0, mms_ms0, mms_a1, mms_a2, mms_scale,
                         spread_a, spread_s12))
         return ret / ret.sum() / (mv[1, 0] - mv[0, 0]) / (ms[0, 1] - ms[0, 0])
+
+    def get_f_p(self, mv, ms,
+                mms_mv0, mms_ms0, mms_a1, mms_a2, mms_scale,
+                spread_a, spread_s12,
+                f_a, f_x0, f_b, f_cutoff):
+        f = self.f_mv(mv, f_a, f_x0, f_b, f_cutoff)
+        p = f * self.G(mv, ms,
+                       mms_mv0, mms_ms0, mms_a1, mms_a2, mms_scale,
+                       spread_a, spread_s12)
+        return f, p
 
     @staticmethod
     def get_observables(p, N, s2, out):
@@ -128,10 +128,11 @@ class ThePlot:
         ms = ms.reshape((1, -1))
         s2 = s2.reshape((-1, 1))
 
-        f = self.f_mv(mv, f_a, f_x0, f_b, f_cutoff)
-        p = f * self.G(mv, ms,
-                       mms_mv0, mms_ms0, mms_a1, mms_a2, mms_scale,
-                       spread_a, spread_s12)
+        f, p = self.get_f_p(
+            mv, ms,
+            mms_mv0, mms_ms0, mms_a1, mms_a2, mms_scale,
+            spread_a, spread_s12,
+            f_a, f_x0, f_b, f_cutoff)
         N = self.N(mv, N_a, N_N12, p, f)
 
         return self.get_observables(p, N, s2, out)
@@ -148,29 +149,23 @@ class ObservedThePlot(ThePlot):
                         (po['z'][1:] + po['z'][:-1]) / 2),
                        po_ms_z, bounds_error=False, fill_value=0)
 
-    def __init__(self, z, ms):
+    def __init__(self, z, ms, mv):
         self.dms = ms[1] - ms[0]
         self.z = z
         self.po_ms = self.po_ms_i(np.array((ms, [self.z] * len(ms))).T)
 
-    def G(self, *args, **kwargs):
-        G = super(ObservedThePlot, self).G(*args, **kwargs)
-        G *= self.po_ms[np.newaxis, :]
-        G /= np.nansum(G, axis=1, keepdims=True)
-        G /= self.dms
-        return G
+        mv = mv.reshape((-1, 1))
+        pars = self.f_mv_sat.best_values.copy()
+        pars['x0'] = mv + pars['x0']
+        self.f = np.power(10, self.f_mv_sat.model.func(mv, **pars))
 
-    @classmethod
-    def p_mv0_mv(cls, mv, f_mv):
-        pars = cls.f_mv_sat.best_values.copy()
-        pars['x0'] = mv[:, np.newaxis] + pars['x0']
-        logf = cls.f_mv_sat.model.func(mv[np.newaxis, :], **pars)
-        ret = f_mv * np.power(10, logf)
+    def p_mv0_mv(self, f_mv):
+        ret = f_mv * self.f
         ret = ret / ret.sum()
         return np.where(np.isnan(ret), 0, ret)
 
     def fn(self, mv, p, f_mv):
-        p_mv0_mv = self.p_mv0_mv(mv.ravel(), f_mv.ravel())
+        p_mv0_mv = self.p_mv0_mv(f_mv.ravel())
         fn = ((p_mv0_mv / p_mv0_mv.sum(axis=1, keepdims=True))[:, :, np.newaxis]
               * (p / p.sum(axis=1, keepdims=True))[np.newaxis, :, :]
               * self.po_ms[np.newaxis, np.newaxis, :])
@@ -185,7 +180,7 @@ class ThePlotModel:
     p_init.add('mms_mv0', 12, min=9, max=15, brute_step=0.1)    # 60
     p_init.add('mms_ms0', 10, min=7, max=12, brute_step=0.1)    # 50
     p_init.add('mms_a1', 2, min=0, max=5, brute_step=0.1)       # 50
-    p_init.add('adiff', 1.7, min=0)
+    p_init.add('adiff', 1.7, min=0, max=5)
     p_init.add('mms_a2', 0.3, expr='mms_a1-adiff', min=0, max=5, brute_step=0.1)     # 50
     p_init.add('mms_scale', 1, min=0, max=5, vary=False)
     p_init.add('spread_a', 0, vary=False)
@@ -221,6 +216,12 @@ class ThePlotModel:
 
         self.mini = None
 
+    def fix_fmv(self, params):
+        self.tpc.set_f_mv(mv=self.get_mv(),
+                          a=params['f_a'], x0=params['f_x0'],
+                          b=params['f_b'], cutoff=params['f_cutoff'])
+        params['f_a'].vary = params['f_x0'].vary = params['f_b'].vary = params['f_cutoff'].vary = False
+
     def func(self, *args, **kwargs):
         return self.tpc.theplot(*args, **kwargs)
 
@@ -236,10 +237,7 @@ class ThePlotModel:
         if params is None:
             params = self.p_init.copy()
         if not varyf:
-            self.tpc.set_f_mv(mv=self.get_mv(),
-                              a=params['f_a'], x0=params['f_x0'],
-                              b=params['f_b'], cutoff=params['f_cutoff'])
-            params['f_a'].vary = params['f_x0'].vary = params['f_b'].vary = params['f_cutoff'].vary = False
+            self.fix_fmv(params)
         self.mini = lmfit.Minimizer(self.residual, params, **kwargs)
         res = self.mini.minimize(method, params)
         self.tpc.f_mv = self.tpc.f_mv_v
