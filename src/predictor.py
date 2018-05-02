@@ -180,8 +180,8 @@ class ThePlotModel:
     p_init.add('mms_mv0', 12, min=9, max=15, brute_step=0.1)    # 60
     p_init.add('mms_ms0', 10, min=7, max=12, brute_step=0.1)    # 50
     p_init.add('mms_a1', 2, min=0, max=5, brute_step=0.1)       # 50
-    p_init.add('adiff', 1.7, min=0, max=5)
-    p_init.add('mms_a2', 0.3, expr='mms_a1-adiff', min=0, max=5, brute_step=0.1)     # 50
+    # p_init.add('adiff', 1.7, min=0, max=5)
+    p_init.add('mms_a2', 0.3, min=0, max=5, brute_step=0.1)     # 50
     p_init.add('mms_scale', 1, min=0, max=5, vary=False)
     p_init.add('spread_a', 0, vary=False)
     p_init.add('spread_s12', 0.25, min=0, max=2, brute_step=0.1)  # 20
