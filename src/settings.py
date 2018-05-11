@@ -43,6 +43,8 @@ FILES = {
     'vdist': lambda _sn: 'data/vdist/satstats{}.fits'.format(_sn),
 
     'cone': lambda _i=1, _sats=None: 'cones/cone{:03}{}.fits'.format(_i, '' if _sats is None else '>0' if _sats else '=0'),
+    'cone-sigmas': lambda _i=1: 'data/cones/sigmas{:03}.fits'.format(_i),
+    'cone-theplot': 'data/cones/theplot.npy',
     'hst': '3d-hst/3d-hst.fits',
     'hst-sw': '3d-hst/theplot-sw.fits',
 
@@ -60,5 +62,7 @@ FILES = {
     'N(mv)': 'data_aux/num_sat(mvir).sav',
     'No(mv)': lambda _sn: 'data/nums{}_obs_mv.fits'.format(_sn),
     'f(mv_sat)': 'data_aux/f(mvir_sat).sav',
-    'f(mv)': lambda _sn: 'data_aux/f(mv){}.sav'.format(_sn)
+    'f(mv)': lambda _sn: 'data_aux/f(mv){}.sav'.format(_sn),
+
+    'master': 'deepfields/X.csv'
 }
